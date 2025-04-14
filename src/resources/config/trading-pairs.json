@@ -1,0 +1,46 @@
+{
+  "pairs": [
+    {
+      "symbol": "BTCUSDT",
+      "baseAsset": "BTC",
+      "quoteAsset": "USDT",
+      "notionalMinimum": 5.0,
+      "priceDecimalPlaces": 2,
+      "quantityDecimalPlaces": 3,
+      "defaultLeverage": 10,
+      "maxLeverage": 20,
+      "maintenanceMarginRate": 0.025,
+      "lotSizeFilter": {
+        "minQty": "0.001",
+        "maxQty": "1000.000",
+        "stepSize": "0.001"
+      },
+      "priceFilter": {
+        "minPrice": "0.01",
+        "maxPrice": "100000.00",
+        "tickSize": "0.01"
+      }
+    },
+    {
+      "symbol": "ETHUSDT",
+      "baseAsset": "ETH",
+      "quoteAsset": "USDT",
+      "notionalMinimum": 5.0,
+      "priceDecimalPlaces": 2,
+      "quantityDecimalPlaces": 3,
+      "defaultLeverage": 10,
+      "maxLeverage": 20,
+      "maintenanceMarginRate": 0.025,
+      "lotSizeFilter": {
+        "minQty": "0.001",
+        "maxQty": "10000.000",
+        "stepSize": "0.001"
+      },
+      "priceFilter": {
+        "minPrice": "0.01",
+        "maxPrice": "10000.00",
+        "tickSize": "0.01"
+      }
+    }
+  ]
+}

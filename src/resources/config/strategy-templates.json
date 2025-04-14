@@ -1,0 +1,87 @@
+{
+  "strategies": {
+    "macd_crossover": {
+      "name": "MACD Crossover Strategy",
+      "description": "Trades based on MACD crossing signal line",
+      "riskLevel": "moderate",
+      "timeframe": "1h",
+      "indicators": [
+        {
+          "name": "MACD",
+          "parameters": {
+            "fastPeriod": 12,
+            "slowPeriod": 26,
+            "signalPeriod": 9
+          }
+        },
+        {
+          "name": "RSI",
+          "parameters": {
+            "period": 14,
+            "overbought": 70,
+            "oversold": 30
+          }
+        }
+      ],
+      "customRules": [
+        "Enter long when MACD crosses above signal line and RSI < 70",
+        "Enter short when MACD crosses below signal line and RSI > 30",
+        "Exit position when price moves 2% against entry"
+      ]
+    },
+    "trend_following": {
+      "name": "Trend Following Strategy",
+      "description": "Follows market trends using moving averages",
+      "riskLevel": "conservative",
+      "timeframe": "4h",
+      "indicators": [
+        {
+          "name": "EMA",
+          "parameters": {
+            "shortPeriod": 20,
+            "longPeriod": 50
+          }
+        },
+        {
+          "name": "ATR",
+          "parameters": {
+            "period": 14,
+            "multiplier": 2
+          }
+        }
+      ],
+      "customRules": [
+        "Enter long when short EMA crosses above long EMA",
+        "Enter short when short EMA crosses below long EMA",
+        "Set stop loss at 2 * ATR from entry"
+      ]
+    },
+    "breakout_momentum": {
+      "name": "Breakout Momentum Strategy",
+      "description": "Trades breakouts with volume confirmation",
+      "riskLevel": "aggressive",
+      "timeframe": "15m",
+      "indicators": [
+        {
+          "name": "Bollinger Bands",
+          "parameters": {
+            "period": 20,
+            "deviations": 2
+          }
+        },
+        {
+          "name": "Volume",
+          "parameters": {
+            "averagePeriod": 20,
+            "threshold": 1.5
+          }
+        }
+      ],
+      "customRules": [
+        "Enter long on price break above upper band with volume > threshold",
+        "Enter short on price break below lower band with volume > threshold",
+        "Take profit at 2x the distance to entry band"
+      ]
+    }
+  }
+}

@@ -1,0 +1,145 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "bookTicker": {
+      "type": "object",
+      "required": [
+        "u",
+        "s",
+        "b",
+        "B",
+        "a",
+        "A",
+        "T",
+        "E"
+      ],
+      "properties": {
+        "u": {
+          "type": "number",
+          "description": "Order book updateId"
+        },
+        "s": {
+          "type": "string",
+          "description": "Symbol"
+        },
+        "b": {
+          "type": "string",
+          "description": "Best bid price"
+        },
+        "B": {
+          "type": "string",
+          "description": "Best bid quantity"
+        },
+        "a": {
+          "type": "string",
+          "description": "Best ask price"
+        },
+        "A": {
+          "type": "string",
+          "description": "Best ask quantity"
+        },
+        "T": {
+          "type": "number",
+          "description": "Transaction time"
+        },
+        "E": {
+          "type": "number",
+          "description": "Event time"
+        }
+      }
+    },
+    "trade": {
+      "type": "object",
+      "required": [
+        "symbol",
+        "id",
+        "orderId",
+        "price",
+        "qty",
+        "quoteQty",
+        "commission",
+        "commissionAsset",
+        "time",
+        "isBuyer",
+        "isMaker",
+        "isIsolated",
+        "positionSide",
+        "realizedPnl"
+      ],
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "description": "Trading pair symbol"
+        },
+        "id": {
+          "type": "number",
+          "description": "Trade ID"
+        },
+        "orderId": {
+          "type": "number",
+          "description": "Order ID"
+        },
+        "price": {
+          "type": "string",
+          "description": "Trade price"
+        },
+        "qty": {
+          "type": "string",
+          "description": "Trade quantity"
+        },
+        "quoteQty": {
+          "type": "string",
+          "description": "Quote asset quantity"
+        },
+        "commission": {
+          "type": "string",
+          "description": "Commission amount"
+        },
+        "commissionAsset": {
+          "type": "string",
+          "description": "Asset in which commission was charged"
+        },
+        "time": {
+          "type": "number",
+          "description": "Trade time"
+        },
+        "isBuyer": {
+          "type": "boolean",
+          "description": "Whether the buyer is the maker"
+        },
+        "isMaker": {
+          "type": "boolean",
+          "description": "Whether the trade was a maker trade"
+        },
+        "isIsolated": {
+          "type": "boolean",
+          "description": "Whether the trade was for an isolated margin"
+        },
+        "positionSide": {
+          "type": "string",
+          "enum": [
+            "BOTH",
+            "LONG",
+            "SHORT"
+          ],
+          "description": "Position side"
+        },
+        "realizedPnl": {
+          "type": "string",
+          "description": "Realized profit and loss"
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/definitions/bookTicker"
+    },
+    {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/trade"
+      }
+    }
+  ]
+}
