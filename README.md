@@ -1,105 +1,120 @@
-# Binance Futures Trading MCP Server
+# Binance MCP Server
 
-A Model Context Protocol (MCP) server implementation for automated trading on Binance Futures.
+A Model Context Protocol (MCP) server implementation for Binance Futures trading.
 
 ## Features
 
-- Real-time market data streaming using WebSocket
-- Risk management with configurable parameters
-- Trade execution with stop-loss and take-profit orders
-- Support for multiple order types (MARKET, LIMIT, STOP_MARKET, TAKE_PROFIT_MARKET)
-- Testnet support for safe testing
-- Event-driven architecture for trade monitoring
-
-## Prerequisites
-
-- Node.js >= 18.0.0
-- npm or yarn
-- Binance API key and secret with Futures trading permissions
+- Create, approve, and cancel trades
+- Monitor trading pairs
+- Get real-time price updates
+- Risk management and trade validation
+- WebSocket connection management
+- Error handling and logging
 
 ## Installation
-
-1. Clone the repository:
-
-```bash
-git clone https://github.com/yourusername/binance-mcp.git
-cd binance-mcp
-```
-
-2. Install dependencies:
 
 ```bash
 npm install
 ```
 
-3. Create environment configuration:
-
-```bash
-cp .env.example .env
-```
-
-4. Update the .env file with your Binance API credentials and configuration.
-
 ## Configuration
 
-### Environment Variables
+Configure the server through VSCode settings. Add the following to your `.vscode/settings.json`:
 
-- `BINANCE_API_KEY`: Your Binance API key
-- `BINANCE_API_SECRET`: Your Binance API secret
-- `BINANCE_TESTNET`: Use testnet (true/false)
-- `TIME_IN_FORCE`: Default time in force for limit orders (GTC/IOC/FOK)
-- `MAX_POSITION_SIZE`: Maximum position size in USDT
-- `MAX_LEVERAGE`: Maximum allowed leverage
-- `STOP_LOSS_PERCENTAGE`: Default stop loss percentage
-- `DAILY_LOSS_LIMIT`: Maximum daily loss limit in USDT
-- `PRICE_DEVIATION_LIMIT`: Maximum allowed price deviation
+```json
+{
+  "mcpServers": {
+    "binance": {
+      "command": "npx",
+      "args": ["-y", "binance-mcp"],
+      "env": {
+        "BINANCE_API_KEY": "your_api_key",
+        "BINANCE_API_SECRET": "your_api_secret"
+      },
+      "trading": {
+        "maxPositionSize": 10000,
+        "maxLeverage": 20,
+        "stopLossPercentage": 0.05,
+        "priceDeviationLimit": 0.02,
+        "dailyLossLimit": 1000
+      }
+    }
+  }
+}
+```
 
-## Running the Server
+## Available Tools
 
-### Development Mode
+### Trading Operations
+
+1. `create_trade`
+
+   - Create a new trade in pending status
+   - Parameters: symbol, side, type, quantity, price (for limit orders), stopLoss, takeProfit
+
+2. `approve_trade`
+
+   - Approve a pending trade for execution
+   - Parameters: id
+
+3. `cancel_trade`
+
+   - Cancel a pending trade
+   - Parameters: id
+
+4. `list_trades`
+   - List all trades (both pending and active)
+   - No parameters required
+
+### Market Operations
+
+1. `monitor_symbol`
+
+   - Start monitoring price updates for a trading symbol
+   - Parameters: symbol
+
+2. `stop_monitoring_symbol`
+
+   - Stop monitoring price updates for a trading symbol
+   - Parameters: symbol
+
+3. `get_current_price`
+   - Get the current price for a trading symbol
+   - Parameters: symbol
+
+## Development
 
 ```bash
-npm run dev
+# Run in development mode
+npm run mcp:dev
+
+# Build the project
+npm run mcp:build
+
+# Start the production server
+npm run mcp:start
+
+# Run tests
+npm test
 ```
 
-### Production Mode
+## Error Handling
 
-```bash
-npm run build
-npm start
-```
+The server handles various types of errors:
 
-## Usage Example
+- Trading errors (position size, leverage, etc.)
+- Market data errors
+- Binance API errors
+- Configuration errors
+- Validation errors
 
-```typescript
-import { TradingEngine } from "./core/trading-engine";
+## Architecture
 
-const engine = new TradingEngine(binanceConfig, riskConfig);
-
-// Create a trade
-const trade = await engine.createTrade({
-  symbol: "BTCUSDT",
-  side: "BUY",
-  type: "LIMIT",
-  quantity: 0.001,
-  price: 50000,
-  stopLoss: 49000,
-  takeProfit: 52000,
-});
-
-// Approve the trade
-await engine.approveTrade(trade.id);
-```
-
-## Event Handling
-
-The trading engine emits the following events:
-
-- `tradePending`: When a trade is created and pending approval
-- `tradeExecuted`: When a trade is successfully executed
-- `tradeRejected`: When a trade is rejected
-- `tradeCancelled`: When a trade is cancelled
-- `error`: When an error occurs
+- `src/core/`: Core trading engine and WebSocket management
+- `src/operations/`: Trading and market operations
+- `src/tools/`: MCP tool definitions
+- `src/common/`: Shared utilities, validation, and error handling
+- `src/config/`: Configuration management
 
 ## Contributing
 
@@ -111,12 +126,4 @@ The trading engine emits the following events:
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Security
-
-Never commit your .env file or expose your API credentials. Always use testnet for development and testing.
-
-## Disclaimer
-
-Trading cryptocurrencies carries significant risks. This software is for educational purposes only. Use at your own risk.
+MIT License - see LICENSE file for details.

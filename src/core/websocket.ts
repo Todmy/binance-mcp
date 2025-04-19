@@ -1,4 +1,4 @@
-import * as WS from 'ws';
+import { WebSocket } from 'ws';
 import { EventEmitter } from 'events';
 
 interface WebSocketEvent {
@@ -7,7 +7,7 @@ interface WebSocketEvent {
 }
 
 export class WebSocketManager extends EventEmitter {
-  private connections: Map<string, WS.WebSocket>;
+  private connections: Map<string, WebSocket>;
   private baseUrl: string;
   private reconnectAttempts: Map<string, number>;
   private readonly maxReconnectAttempts = 5;
@@ -31,7 +31,7 @@ export class WebSocketManager extends EventEmitter {
       return;
     }
 
-    const ws = new WS.WebSocket(`${this.baseUrl}/${streamName}`);
+    const ws = new WebSocket(`${this.baseUrl}/${streamName}`);
     this.setupWebSocketHandlers(ws, streamName);
     this.connections.set(streamName, ws);
   }
@@ -50,7 +50,7 @@ export class WebSocketManager extends EventEmitter {
     }
   }
 
-  private setupWebSocketHandlers(ws: WS.WebSocket, streamName: string): void {
+  private setupWebSocketHandlers(ws: WebSocket, streamName: string): void {
     ws.on('open', () => {
       console.info(`Connected to stream: ${streamName}`);
       this.reconnectAttempts.set(streamName, 0);

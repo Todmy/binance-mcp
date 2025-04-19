@@ -1,16 +1,24 @@
 {
   "compilerOptions": {
     "target": "ES2020",
+    "typeRoots": ["./node_modules/@types", "./src/types"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "strict": true,
-    "skipLibCheck": true,
+    "lib": ["ES2020"],
     "outDir": "./dist",
     "rootDir": "./src",
-    "downlevelIteration": true
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "binance-api-node": ["./src/types/binance-api-node.d.ts"]
+    }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
 }

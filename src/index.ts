@@ -1,92 +1,256 @@
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema
+} from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
+import { CreateTradeToolSchema } from './common/validation';
+import { VSCodeSettingsManager } from './config/vscode-settings';
 import { TradingEngine } from './core/trading-engine';
-import { BinanceConfig, RiskConfig } from './config/types';
-import { TimeInForce } from 'binance-api-node';
-import * as dotenv from 'dotenv';
+import { BinanceError, TradingError, MarketDataError } from './common/errors';
+import { createTradingOperations } from './operations/trading';
+import { createMarketOperations } from './operations/market';
+import { ALL_TOOLS } from './tools/definitions';
 
-// Load environment variables
-dotenv.config();
+// Configuration tools
+const CONFIG_TOOLS = [
+  {
+    name: 'set_configuration',
+    description: 'Set Binance MCP configuration',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        binance: {
+          type: 'object',
+          properties: {
+            apiKey: { type: 'string' },
+            apiSecret: { type: 'string' }
+          },
+          required: ['apiKey', 'apiSecret']
+        },
+        risk: {
+          type: 'object',
+          properties: {
+            maxPositionSize: { type: 'number' },
+            maxLeverage: { type: 'number' },
+            stopLossPercentage: { type: 'number' },
+            dailyLossLimit: { type: 'number' },
+            priceDeviationLimit: { type: 'number' }
+          },
+          required: ['maxPositionSize', 'maxLeverage', 'stopLossPercentage', 'dailyLossLimit', 'priceDeviationLimit']
+        },
+        strategy: {
+          type: 'object',
+          properties: {
+            riskLevel: { type: 'string', enum: ['conservative', 'moderate', 'aggressive'] },
+            timeframe: { type: 'string', enum: ['1m', '5m', '15m', '1h', '4h', '1d'] }
+          },
+          required: ['riskLevel', 'timeframe']
+        }
+      },
+      required: ['binance', 'risk', 'strategy']
+    }
+  },
+  {
+    name: 'get_configuration_status',
+    description: 'Check if Binance MCP is configured',
+    inputSchema: {
+      type: 'object',
+      properties: {}
+    }
+  }
+];
 
-async function main(): Promise<void> {
-  // Load configuration from environment variables
-  const binanceConfig: BinanceConfig = {
-    apiKey: process.env.BINANCE_API_KEY || '',
-    apiSecret: process.env.BINANCE_API_SECRET || '',
-    testnet: process.env.BINANCE_TESTNET === 'true'
-  };
+class BinanceMCPServer {
+  private server: Server;
+  private engine?: TradingEngine;
+  private trading?: ReturnType<typeof createTradingOperations>;
+  private market?: ReturnType<typeof createMarketOperations>;
+  private isConfigured: boolean = false;
 
-  const riskConfig: RiskConfig = {
-    maxPositionSize: parseFloat(process.env.MAX_POSITION_SIZE || '10000'),
-    maxLeverage: parseInt(process.env.MAX_LEVERAGE || '20'),
-    stopLossPercentage: parseFloat(process.env.STOP_LOSS_PERCENTAGE || '0.02'),
-    dailyLossLimit: parseFloat(process.env.DAILY_LOSS_LIMIT || '1000'),
-    priceDeviationLimit: parseFloat(process.env.PRICE_DEVIATION_LIMIT || '0.05')
-  };
+  constructor() {
+    this.server = new Server(
+      {
+        name: 'binance-mcp',
+        version: '1.0.0',
+      },
+      {
+        capabilities: {
+          tools: {},
+        },
+      }
+    );
+  }
 
-  // Initialize trading engine
-  const engine = new TradingEngine(binanceConfig, riskConfig);
+  private async initializeTrading(config: any) {
+    try {
+      VSCodeSettingsManager.validateConfig(config);
 
-  // Set up event handlers
-  engine.on('tradePending', (trade) => {
-    console.info('Trade pending:', trade);
-  });
+      const { binance: binanceConfig, risk: riskConfig } = config;
+      this.engine = new TradingEngine(binanceConfig, riskConfig);
+      this.trading = createTradingOperations(this.engine);
+      this.market = createMarketOperations(this.engine);
 
-  engine.on('tradeExecuted', ({ trade, order }) => {
-    console.info('Trade executed:', { trade, order });
-  });
+      // Save configuration to VSCode settings
+      await VSCodeSettingsManager.saveConfig(config);
 
-  engine.on('tradeRejected', ({ trade, error }) => {
-    console.error('Trade rejected:', { trade, error });
-  });
+      this.isConfigured = true;
+      return true;
+    } catch (error) {
+      console.error('Failed to initialize trading:', error);
+      return false;
+    }
+  }
 
-  engine.on('tradeCancelled', (trade) => {
-    console.info('Trade cancelled:', trade);
-  });
+  private getAvailableTools() {
+    if (this.isConfigured) {
+      return [...CONFIG_TOOLS, ...ALL_TOOLS];
+    }
+    return CONFIG_TOOLS;
+  }
 
-  engine.on('error', (error) => {
-    console.error('Trading engine error:', error);
-  });
+  async start() {
+    // Try to load existing configuration
+    try {
+      const config = VSCodeSettingsManager.getBinanceConfig();
+      await this.initializeTrading(config);
+    } catch (error) {
+      console.error('No existing configuration found, starting in unconfigured state');
+    }
 
-  // Example: Create and execute a trade
-  try {
-    // Start monitoring the symbol
-    await engine.monitorSymbol('BTCUSDT');
+    // Handle tool listing
+    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
+      tools: this.getAvailableTools(),
+      version: '1.0.0'
+    }));
 
-    // Create a trade
-    const trade = await engine.createTrade({
-      symbol: 'BTCUSDT',
-      side: 'BUY',
-      type: 'LIMIT',
-      quantity: 0.001,
-      price: 50000,
-      stopLoss: 49000,
-      takeProfit: 52000,
-      timeInForce: process.env.TIME_IN_FORCE as TimeInForce || 'GTC' as TimeInForce
+    // Handle tool execution
+    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      try {
+        const { name, arguments: args = {} } = request.params;
+
+        // Handle configuration tools
+        if (name === 'set_configuration') {
+          const success = await this.initializeTrading(args);
+          return {
+            content: [{
+              type: 'text',
+              text: success ? 'Configuration set successfully' : 'Failed to set configuration'
+            }],
+            isError: !success
+          };
+        }
+
+        if (name === 'get_configuration_status') {
+          return {
+            content: [{
+              type: 'text',
+              text: `Server is ${this.isConfigured ? 'configured' : 'not configured'}`
+            }]
+          };
+        }
+
+        // Ensure server is configured for trading operations
+        if (!this.isConfigured || !this.engine || !this.trading || !this.market) {
+          throw new Error('Server must be configured before using trading operations');
+        }
+
+        // Handle trading tools
+        switch (name) {
+          case 'create_trade':
+            if (!args) throw new Error('Missing trade parameters');
+            const tradeId = await this.trading!.createTrade(args as z.infer<typeof CreateTradeToolSchema>);
+            return {
+              content: [{ type: 'text', text: `Trade created with ID: ${tradeId}` }],
+            };
+
+          case 'approve_trade':
+            if (!args || typeof args.id !== 'string') throw new Error('Missing or invalid trade ID');
+            await this.trading!.approveTrade({ id: args.id });
+            return {
+              content: [{ type: 'text', text: 'Trade approved and executed' }],
+            };
+
+          case 'cancel_trade':
+            if (!args || typeof args.id !== 'string') throw new Error('Missing or invalid trade ID');
+            await this.trading!.cancelTrade({ id: args.id });
+            return {
+              content: [{ type: 'text', text: 'Trade cancelled' }],
+            };
+
+          case 'list_trades':
+            const trades = await this.trading!.listTrades();
+            return {
+              content: [{ type: 'text', text: JSON.stringify(trades, null, 2) }],
+            };
+
+          // Market tools
+          case 'monitor_symbol':
+            if (!args || typeof args.symbol !== 'string') throw new Error('Missing or invalid symbol');
+            await this.market!.monitorSymbol({ symbol: args.symbol });
+            return {
+              content: [{ type: 'text', text: `Started monitoring ${args.symbol}` }],
+            };
+
+          case 'stop_monitoring_symbol':
+            if (!args || typeof args.symbol !== 'string') throw new Error('Missing or invalid symbol');
+            await this.market!.stopMonitoringSymbol({ symbol: args.symbol });
+            return {
+              content: [{ type: 'text', text: `Stopped monitoring ${args.symbol}` }],
+            };
+
+          case 'get_current_price':
+            if (!args || typeof args.symbol !== 'string') throw new Error('Missing or invalid symbol');
+            const price = await this.market!.getCurrentPrice(args.symbol);
+            return {
+              content: [{ type: 'text', text: `Current price for ${args.symbol}: ${price}` }],
+            };
+
+          default:
+            throw new Error(`Unknown tool: ${name}`);
+        }
+      } catch (error) {
+        console.error('Error executing tool:', error);
+
+        let errorMessage = 'An unknown error occurred';
+        if (error instanceof TradingError || error instanceof MarketDataError) {
+          errorMessage = error.message;
+        } else if (error instanceof BinanceError) {
+          errorMessage = `Binance API error: ${error.message}`;
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+
+        return {
+          content: [{ type: 'text', text: errorMessage }],
+          isError: true,
+        };
+      }
     });
 
-    console.info('Trade created:', trade);
-
-    // Approve the trade after 5 seconds
-    setTimeout(async () => {
-      try {
-        await engine.approveTrade(trade.id);
-        console.info('Trade approved and executed');
-      } catch (error) {
-        console.error('Error approving trade:', error);
+    // Set up cleanup on shutdown
+    process.on('SIGINT', async () => {
+      console.info('Shutting down...');
+      if (this.engine) {
+        await this.engine.cleanup();
       }
-    }, 5000);
+      process.exit(0);
+    });
 
-  } catch (error) {
-    console.error('Error in trading example:', error);
+    // Start the server
+    const transport = new StdioServerTransport();
+    await this.server.connect(transport);
+    console.error('Binance MCP Server running on stdio');
   }
 }
 
-// Handle graceful shutdown
-process.on('SIGINT', async () => {
-  console.info('Shutting down...');
-  process.exit(0);
-});
+// Create and start the server
+async function main() {
+  const server = new BinanceMCPServer();
+  await server.start();
+}
 
-// Run the main function
 main().catch((error) => {
   console.error('Fatal error:', error);
   process.exit(1);

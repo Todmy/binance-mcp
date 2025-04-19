@@ -132,7 +132,7 @@ export class TradingEngine extends EventEmitter {
     await this.wsManager.disconnectFromStream(symbol, 'bookTicker');
   }
 
-  private async getCurrentPrice(symbol: string): Promise<number | null> {
+  public async getCurrentPrice(symbol: string): Promise<number | null> {
     const cachedPrice = this.priceCache.get(symbol);
     if (cachedPrice) {
       return cachedPrice;
@@ -199,5 +199,30 @@ export class TradingEngine extends EventEmitter {
 
   public async cleanup(): Promise<void> {
     await this.wsManager.closeAll();
+  }
+
+  public async listTrades(): Promise<Trade[]> {
+    // Convert pendingTrades Map to array
+    const pendingTradeArray = Array.from(this.pendingTrades.values());
+
+    // Get active positions and convert to Trade objects
+    const activeTradeArray = Array.from(this.activePositions.keys()).map(id => {
+      const position = this.activePositions.get(id);
+      return {
+        id,
+        symbol: position.symbol,
+        side: position.side,
+        type: position.type,
+        quantity: parseFloat(position.quantity),
+        price: position.price ? parseFloat(position.price) : undefined,
+        stopLoss: position.stopPrice ? parseFloat(position.stopPrice) : undefined,
+        timeInForce: position.timeInForce,
+        timestamp: position.time,
+        status: 'EXECUTED' as const
+      };
+    });
+
+    // Combine both arrays
+    return [...pendingTradeArray, ...activeTradeArray];
   }
 }

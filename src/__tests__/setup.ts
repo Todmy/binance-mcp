@@ -1,15 +1,47 @@
-import 'dotenv/config';
+// Test setup and configuration
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 
-// Mock environment variables for testing
-process.env.BINANCE_API_KEY = 'test-api-key';
-process.env.BINANCE_API_SECRET = 'test-api-secret';
-process.env.BINANCE_TESTNET = 'true';
-process.env.MAX_POSITION_SIZE = '10000';
-process.env.MAX_LEVERAGE = '20';
-process.env.STOP_LOSS_PERCENTAGE = '0.02';
-process.env.DAILY_LOSS_LIMIT = '1000';
-process.env.PRICE_DEVIATION_LIMIT = '0.05';
-process.env.TIME_IN_FORCE = 'GTC';
+const SETTINGS_PATH = path.join(
+  os.homedir(),
+  'Library',
+  'Application Support',
+  'Code',
+  'User',
+  'globalStorage',
+  'saoudrizwan.claude-dev',
+  'settings',
+  'cline_mcp_settings.json'
+);
+
+// Read current settings
+const settings = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8'));
+
+// Set test configuration
+settings.mcpServers.binanceMcp = {
+  binance: {
+    apiKey: 'test-api-key',
+    apiSecret: 'test-api-secret',
+    testnet: true
+  },
+  risk: {
+    maxPositionSize: 10000,
+    maxLeverage: 20,
+    stopLossPercentage: 0.02,
+    dailyLossLimit: 1000,
+    priceDeviationLimit: 0.05
+  },
+  strategy: {
+    riskLevel: 'conservative',
+    timeframe: '1h',
+    indicators: [],
+    customRules: []
+  }
+};
+
+// Write test configuration back to settings file
+fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
 
 // Mock Binance API
 jest.mock('binance-api-node', () => {
