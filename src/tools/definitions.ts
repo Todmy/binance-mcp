@@ -62,7 +62,130 @@ export const MARKET_TOOLS: Tool[] = [
       },
       required: ['symbol']
     }
+  },
+  {
+    name: 'scan_market',
+    description: 'Start scanning market for trading opportunities',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        symbols: {
+          type: 'array',
+          items: {
+            type: 'string'
+          },
+          description: 'List of symbols to scan'
+        },
+        config: {
+          type: 'object',
+          properties: {
+            updateInterval: {
+              type: 'number',
+              description: 'Update interval in milliseconds'
+            },
+            volatilityWindow: {
+              type: 'number',
+              description: 'Number of periods for volatility calculation'
+            },
+            minimumVolume: {
+              type: 'number',
+              description: 'Minimum 24h volume to consider'
+            },
+            minimumVolatility: {
+              type: 'number',
+              description: 'Minimum volatility percentage to consider'
+            }
+          }
+        }
+      },
+      required: ['symbols']
+    }
+  },
+  {
+    name: 'get_opportunities',
+    description: 'Get current trading opportunities',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: {
+          type: 'number',
+          description: 'Maximum number of opportunities to return'
+        }
+      }
+    }
   }
 ];
 
-export const ALL_TOOLS: Tool[] = [...TRADING_TOOLS, ...MARKET_TOOLS];
+export const MANUAL_TRADING_TOOLS: Tool[] = [
+  {
+    name: 'get_trade_suggestions',
+    description: 'Get current trade suggestions',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        minScore: {
+          type: 'number',
+          description: 'Minimum score threshold (0-1)'
+        }
+      }
+    }
+  },
+  {
+    name: 'approve_suggestion',
+    description: 'Approve and execute a trade suggestion',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        suggestionId: {
+          type: 'string',
+          description: 'ID of the trade suggestion to approve'
+        }
+      },
+      required: ['suggestionId']
+    }
+  },
+  {
+    name: 'reject_suggestion',
+    description: 'Reject a trade suggestion',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        suggestionId: {
+          type: 'string',
+          description: 'ID of the trade suggestion to reject'
+        }
+      },
+      required: ['suggestionId']
+    }
+  },
+  {
+    name: 'close_position',
+    description: 'Close an active position',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tradeId: {
+          type: 'string',
+          description: 'ID of the trade to close'
+        }
+      },
+      required: ['tradeId']
+    }
+  },
+  {
+    name: 'enable_trading',
+    description: 'Enable or disable trading',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        enabled: {
+          type: 'boolean',
+          description: 'Whether to enable or disable trading'
+        }
+      },
+      required: ['enabled']
+    }
+  }
+];
+
+export const ALL_TOOLS: Tool[] = [...TRADING_TOOLS, ...MARKET_TOOLS, ...MANUAL_TRADING_TOOLS];

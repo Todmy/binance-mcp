@@ -36,6 +36,7 @@ export interface Trade {
   timeInForce?: TimeInForce;
   timestamp: number;
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXECUTED' | 'CANCELLED';
+  reduceOnly?: boolean;
 }
 
 export interface RiskAssessment {

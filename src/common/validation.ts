@@ -29,16 +29,47 @@ export const TimeframeSchema = z.object({
   limit: z.number().min(1).max(1000).optional().describe("Number of candles to fetch")
 });
 
+// Market Scanner Schemas
+export const ScanMarketSchema = z.object({
+  symbols: z.array(z.string()).describe("List of symbols to scan"),
+  config: z.object({
+    updateInterval: z.number().optional(),
+    volatilityWindow: z.number().optional(),
+    minimumVolume: z.number().optional(),
+    minimumVolatility: z.number().optional()
+  }).optional()
+});
+
+export const GetOpportunitiesSchema = z.object({
+  limit: z.number().min(1).max(50).optional().describe("Maximum number of opportunities to return")
+});
+
+// Manual Trading Schemas
+export const GetTradeSuggestionsSchema = z.object({
+  minScore: z.number().min(0).max(1).optional().describe("Minimum score threshold")
+});
+
+export const SuggestionIdSchema = z.object({
+  suggestionId: z.string().describe("ID of the trade suggestion")
+});
+
+export const EnableTradingSchema = z.object({
+  enabled: z.boolean().describe("Whether to enable or disable trading")
+});
+
 // Tool Schemas for MCP
 export const CreateTradeToolSchema = CreateTradeSchema;
-
 export const ApproveTradeToolSchema = TradeIdSchema;
-
 export const CancelTradeToolSchema = TradeIdSchema;
-
 export const MonitorSymbolToolSchema = SymbolSchema;
-
 export const GetMarketDataToolSchema = TimeframeSchema;
+export const ScanMarketToolSchema = ScanMarketSchema;
+export const GetOpportunitiesToolSchema = GetOpportunitiesSchema;
+export const GetTradeSuggestionsToolSchema = GetTradeSuggestionsSchema;
+export const ApproveSuggestionToolSchema = SuggestionIdSchema;
+export const RejectSuggestionToolSchema = SuggestionIdSchema;
+export const ClosePositionToolSchema = TradeIdSchema;
+export const EnableTradingToolSchema = EnableTradingSchema;
 
 // Configuration Schemas
 export const RiskConfigSchema = z.object({

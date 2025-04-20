@@ -5,13 +5,27 @@ import {
   ListToolsRequestSchema
 } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { CreateTradeToolSchema } from './common/validation';
+import {
+  CreateTradeToolSchema,
+  ScanMarketToolSchema,
+  GetOpportunitiesToolSchema,
+  GetTradeSuggestionsToolSchema,
+  ApproveSuggestionToolSchema,
+  RejectSuggestionToolSchema,
+  ClosePositionToolSchema,
+  EnableTradingToolSchema
+} from './common/validation';
 import { VSCodeSettingsManager } from './config/vscode-settings';
 import { TradingEngine } from './core/trading-engine';
+import { MarketScanner } from './analysis/market-scanner';
+import { OpportunityScorer } from './analysis/opportunity-scorer';
+import { ManualTrader } from './trading/manual-trader';
 import { BinanceError, TradingError, MarketDataError } from './common/errors';
 import { createTradingOperations } from './operations/trading';
 import { createMarketOperations } from './operations/market';
 import { ALL_TOOLS } from './tools/definitions';
+import Binance from 'binance-api-node';
+import { BinanceClient } from './core/binance-types';
 
 // Configuration tools
 const CONFIG_TOOLS = [
@@ -67,6 +81,9 @@ class BinanceMCPServer {
   private engine?: TradingEngine;
   private trading?: ReturnType<typeof createTradingOperations>;
   private market?: ReturnType<typeof createMarketOperations>;
+  private scanner?: MarketScanner;
+  private scorer?: OpportunityScorer;
+  private manualTrader?: ManualTrader;
   private isConfigured: boolean = false;
 
   constructor() {
@@ -83,14 +100,32 @@ class BinanceMCPServer {
     );
   }
 
-  private async initializeTrading(config: any) {
+  private async initializeTrading(config: any): Promise<boolean> {
     try {
       VSCodeSettingsManager.validateConfig(config);
 
       const { binance: binanceConfig, risk: riskConfig } = config;
+      const client = Binance({
+        apiKey: binanceConfig.apiKey,
+        apiSecret: binanceConfig.apiSecret,
+        httpFutures: 'https://fapi.binance.com',
+        wsFutures: 'wss://fstream.binance.com',
+        httpBase: binanceConfig.testnet ? 'https://testnet.binance.vision' : 'https://api.binance.com'
+      }) as unknown as BinanceClient;
       this.engine = new TradingEngine(binanceConfig, riskConfig);
       this.trading = createTradingOperations(this.engine);
       this.market = createMarketOperations(this.engine);
+
+      // Initialize scanner and scorer
+      this.scanner = new MarketScanner(binanceConfig.testnet, client);
+      this.scorer = new OpportunityScorer();
+
+      // Initialize manual trader with all components
+      this.manualTrader = new ManualTrader(
+        this.engine,
+        this.scanner,
+        this.scorer
+      );
 
       // Save configuration to VSCode settings
       await VSCodeSettingsManager.saveConfig(config);
@@ -103,14 +138,14 @@ class BinanceMCPServer {
     }
   }
 
-  private getAvailableTools() {
+  private getAvailableTools(): any[] {
     if (this.isConfigured) {
       return [...CONFIG_TOOLS, ...ALL_TOOLS];
     }
     return CONFIG_TOOLS;
   }
 
-  async start() {
+  async start(): Promise<void> {
     // Try to load existing configuration
     try {
       const config = VSCodeSettingsManager.getBinanceConfig();
@@ -158,6 +193,64 @@ class BinanceMCPServer {
 
         // Handle trading tools
         switch (name) {
+          // Market scanning tools
+          case 'scan_market':
+            const scanArgs = ScanMarketToolSchema.parse(args);
+            await this.scanner!.startScanning(scanArgs.symbols);
+            if (scanArgs.config) {
+              this.scanner!.updateConfig(scanArgs.config);
+            }
+            return {
+              content: [{ type: 'text', text: `Started scanning ${scanArgs.symbols.length} symbols` }],
+            };
+
+          case 'get_opportunities':
+            const opportunityArgs = GetOpportunitiesToolSchema.parse(args);
+            const opportunities = this.scanner!.getTopOpportunities(opportunityArgs.limit);
+            return {
+              content: [{ type: 'text', text: JSON.stringify(opportunities, null, 2) }],
+            };
+
+          // Manual trading tools
+          case 'get_trade_suggestions':
+            const suggestionArgs = GetTradeSuggestionsToolSchema.parse(args);
+            const suggestions = this.manualTrader!.getPendingSuggestions()
+              .filter(({ suggestion }) =>
+                !suggestionArgs.minScore || suggestion.score >= suggestionArgs.minScore
+              );
+            return {
+              content: [{ type: 'text', text: JSON.stringify(suggestions, null, 2) }],
+            };
+
+          case 'approve_suggestion':
+            const approveArgs = ApproveSuggestionToolSchema.parse(args);
+            const executedTradeId = await this.manualTrader!.approveSuggestion(approveArgs.suggestionId);
+            return {
+              content: [{ type: 'text', text: executedTradeId ? `Trade executed with ID: ${executedTradeId}` : 'Failed to execute trade' }],
+            };
+
+          case 'reject_suggestion':
+            const rejectArgs = RejectSuggestionToolSchema.parse(args);
+            this.manualTrader!.rejectSuggestion(rejectArgs.suggestionId);
+            return {
+              content: [{ type: 'text', text: 'Trade suggestion rejected' }],
+            };
+
+          case 'close_position':
+            const closeArgs = ClosePositionToolSchema.parse(args);
+            const closed = await this.manualTrader!.closePosition(closeArgs.id);
+            return {
+              content: [{ type: 'text', text: closed ? 'Position closed successfully' : 'Failed to close position' }],
+            };
+
+          case 'enable_trading':
+            const enableArgs = EnableTradingToolSchema.parse(args);
+            this.manualTrader!.enableTrading(enableArgs.enabled);
+            return {
+              content: [{ type: 'text', text: `Trading ${enableArgs.enabled ? 'enabled' : 'disabled'}` }],
+            };
+
+          // Original trading tools
           case 'create_trade':
             if (!args) throw new Error('Missing trade parameters');
             const tradeId = await this.trading!.createTrade(args as z.infer<typeof CreateTradeToolSchema>);
@@ -246,7 +339,7 @@ class BinanceMCPServer {
 }
 
 // Create and start the server
-async function main() {
+async function main(): Promise<void> {
   const server = new BinanceMCPServer();
   await server.start();
 }

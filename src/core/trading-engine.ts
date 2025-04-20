@@ -2,18 +2,31 @@ import Binance from 'binance-api-node';
 import { EventEmitter } from 'events';
 import { WebSocketManager } from './websocket';
 import { RiskManager } from './risk-manager';
+import { MarketScanner } from '../analysis/market-scanner';
+import { AlertManager } from '../alerts/alert-manager';
+import { SQLiteStorage } from '../storage/sqlite-storage';
 import { Trade, BinanceConfig, RiskConfig } from '../config/types';
 import { BinanceClient, FuturesOrderParams, FuturesBookTicker } from './binance-types';
+import { HistoricalAnalysis } from '../types/analysis';
+import { MarketStats } from '../analysis/market-scanner';
+import { Alert, AlertConfig, AlertResult } from '../types/alerts';
 
 export class TradingEngine extends EventEmitter {
   private client: BinanceClient;
   private wsManager: WebSocketManager;
   private riskManager: RiskManager;
+  private marketScanner: MarketScanner;
+  private alertManager: AlertManager;
+  private storage: SQLiteStorage;
   private readonly pendingTrades: Map<string, Trade> = new Map();
   private readonly activePositions: Map<string, any> = new Map();
   private readonly priceCache: Map<string, number> = new Map();
 
-  constructor(binanceConfig: BinanceConfig, riskConfig: RiskConfig) {
+  constructor(
+    binanceConfig: BinanceConfig,
+    riskConfig: RiskConfig,
+    dbPath: string = ':memory:'
+  ) {
     super();
     this.client = Binance({
       apiKey: binanceConfig.apiKey,
@@ -25,7 +38,41 @@ export class TradingEngine extends EventEmitter {
 
     this.wsManager = new WebSocketManager(binanceConfig.testnet);
     this.riskManager = new RiskManager(riskConfig);
-    void this.setupWebSocket();
+    this.storage = new SQLiteStorage(dbPath);
+    this.marketScanner = new MarketScanner(binanceConfig.testnet, this.client);
+    this.alertManager = new AlertManager(
+      this.storage,
+      this,
+      this.marketScanner,
+      this.marketScanner.getHistoricalAnalyzer()
+    );
+
+    void this.initialize();
+  }
+
+  private async initialize(): Promise<void> {
+    await this.storage.initialize();
+    await this.alertManager.initialize();
+    await this.setupWebSocket();
+    this.setupAlertListeners();
+  }
+
+  private setupAlertListeners(): void {
+    this.alertManager.on('alertTriggered', (result: AlertResult) => {
+      this.emit('alertTriggered', result);
+    });
+
+    this.alertManager.on('alertOrderExecuted', ({ alert, trade }) => {
+      this.emit('alertOrderExecuted', { alert, trade });
+    });
+
+    this.alertManager.on('alertOrderFailed', ({ alert, error }) => {
+      this.emit('alertOrderFailed', { alert, error });
+    });
+  }
+
+  public getBinanceClient(): BinanceClient {
+    return this.client;
   }
 
   private async setupWebSocket(): Promise<void> {
@@ -198,7 +245,66 @@ export class TradingEngine extends EventEmitter {
   }
 
   public async cleanup(): Promise<void> {
-    await this.wsManager.closeAll();
+    await Promise.all([
+      this.wsManager.closeAll(),
+      this.marketScanner.cleanup(),
+      this.alertManager.cleanup(),
+      this.storage.cleanup()
+    ]);
+  }
+
+  public async getMarketAnalysis(symbol: string): Promise<HistoricalAnalysis | undefined> {
+    return this.marketScanner.getCachedAnalysis(symbol);
+  }
+
+  public async refreshMarketAnalysis(symbol: string): Promise<void> {
+    try {
+      await this.marketScanner.getSymbolAnalysis(symbol, 0); // Force refresh
+    } catch (error) {
+      console.error(`Error refreshing analysis for ${symbol}:`, error);
+      throw error;
+    }
+  }
+
+  public async getBestTradingPairs(limit: number = 10): Promise<MarketStats[]> {
+    return this.marketScanner.getTopOpportunities(limit);
+  }
+
+  public async startMarketScanning(symbols: string[]): Promise<void> {
+    await this.marketScanner.startScanning(symbols);
+  }
+
+  public async stopMarketScanning(symbols: string[]): Promise<void> {
+    await this.marketScanner.stopScanning(symbols);
+  }
+
+  // Alert management methods
+  public async createAlert(config: AlertConfig): Promise<Alert> {
+    return this.alertManager.createAlert(config);
+  }
+
+  public async updateAlert(id: string, config: Partial<AlertConfig>): Promise<Alert | null> {
+    return this.alertManager.updateAlert(id, config);
+  }
+
+  public async deleteAlert(id: string): Promise<boolean> {
+    return this.alertManager.deleteAlert(id);
+  }
+
+  public async getAlert(id: string): Promise<Alert | null> {
+    return this.alertManager.getAlert(id);
+  }
+
+  public async listAlerts(): Promise<Alert[]> {
+    return this.alertManager.getAlerts();
+  }
+
+  public async getTriggeredAlerts(since?: number): Promise<AlertResult[]> {
+    return this.alertManager.getTriggeredAlerts(since);
+  }
+
+  public setAlertCheckInterval(interval: number): void {
+    this.alertManager.setCheckInterval(interval);
   }
 
   public async listTrades(): Promise<Trade[]> {
