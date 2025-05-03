@@ -1,51 +1,127 @@
-import { TradingEngine } from '../core/trading-engine';
-import { MarketDataError } from '../common/errors';
-import { SymbolSchema } from '../common/validation';
 import { z } from 'zod';
+import { MarketDataError } from '../common/errors';
+import { BinanceClient, SpotBookTicker } from '../core/binance-types';
+
+export const SymbolSchema = z.object({
+  symbol: z.string().min(1)
+});
 
 export interface MarketOperations {
-  monitorSymbol(params: z.infer<typeof SymbolSchema>): Promise<void>;
-  stopMonitoringSymbol(params: z.infer<typeof SymbolSchema>): Promise<void>;
-  getCurrentPrice(symbol: string): Promise<number>;
+  getPrice(symbol: string): Promise<string>;
+  getDailyStats(symbol: string): Promise<{
+    priceChange: string;
+    priceChangePercent: string;
+    lastPrice: string;
+    volume: string;
+    highPrice: string;
+    lowPrice: string;
+  }>;
+  getBookTicker(symbol: string): Promise<SpotBookTicker>;
+  getCandles(params: {
+    symbol: string;
+    interval: string;
+    limit?: number;
+  }): Promise<Array<{
+    openTime: number;
+    open: string;
+    high: string;
+    low: string;
+    close: string;
+    volume: string;
+  }>>;
 }
 
 export class BinanceMarketOperations implements MarketOperations {
-  constructor(private readonly engine: TradingEngine) {}
+  constructor(private readonly client: BinanceClient) {}
 
-  async monitorSymbol(params: z.infer<typeof SymbolSchema>): Promise<void> {
+  async getPrice(symbol: string): Promise<string> {
     try {
-      const { symbol } = SymbolSchema.parse(params);
-      await this.engine.monitorSymbol(symbol);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        throw new MarketDataError('Invalid symbol format');
+      const prices = await this.client.prices();
+      const price = prices[symbol];
+
+      if (!price) {
+        throw new MarketDataError(`No price data available for ${symbol}`);
       }
-      throw new MarketDataError(`Failed to monitor symbol: ${error instanceof Error ? error.message : String(error)}`);
+
+      return price;
+    } catch (error) {
+      throw new MarketDataError(`Failed to get price for ${symbol}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-  async stopMonitoringSymbol(params: z.infer<typeof SymbolSchema>): Promise<void> {
+  async getDailyStats(symbol: string): Promise<{
+    priceChange: string;
+    priceChangePercent: string;
+    lastPrice: string;
+    volume: string;
+    highPrice: string;
+    lowPrice: string;
+  }> {
     try {
-      const { symbol } = SymbolSchema.parse(params);
-      await this.engine.stopMonitoringSymbol(symbol);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        throw new MarketDataError('Invalid symbol format');
+      const allStats = await this.client.dailyStats();
+      const stats = allStats.find(stat => stat.symbol === symbol);
+
+      if (!stats) {
+        throw new MarketDataError(`No daily stats available for ${symbol}`);
       }
-      throw new MarketDataError(`Failed to stop monitoring symbol: ${error instanceof Error ? error.message : String(error)}`);
+
+      return {
+        priceChange: stats.priceChange,
+        priceChangePercent: stats.priceChangePercent,
+        lastPrice: stats.lastPrice,
+        volume: stats.volume,
+        highPrice: stats.highPrice,
+        lowPrice: stats.lowPrice
+      };
+    } catch (error) {
+      throw new MarketDataError(`Failed to get daily stats for ${symbol}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-  async getCurrentPrice(symbol: string): Promise<number> {
-    const price = await this.engine.getCurrentPrice(symbol);
-    if (price === null) {
-      throw new MarketDataError(`Unable to get current price for ${symbol}`);
+  async getBookTicker(symbol: string): Promise<SpotBookTicker> {
+    try {
+      const tickers = await this.client.bookTickers();
+      const ticker = tickers.find(t => t.symbol === symbol);
+
+      if (!ticker) {
+        throw new MarketDataError(`No book ticker available for ${symbol}`);
+      }
+
+      return ticker;
+    } catch (error) {
+      throw new MarketDataError(`Failed to get book ticker for ${symbol}: ${error instanceof Error ? error.message : String(error)}`);
     }
-    return price;
+  }
+
+  async getCandles(params: {
+    symbol: string;
+    interval: string;
+    limit?: number;
+  }): Promise<Array<{
+    openTime: number;
+    open: string;
+    high: string;
+    low: string;
+    close: string;
+    volume: string;
+  }>> {
+    try {
+      const candles = await this.client.candles(params);
+      return candles.map(candle => ({
+        openTime: candle.openTime,
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
+        volume: candle.volume
+      }));
+    } catch (error) {
+      throw new MarketDataError(`Failed to get candles for ${params.symbol}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 }
 
 // Helper function to create market operations instance
-export function createMarketOperations(engine: TradingEngine): MarketOperations {
-  return new BinanceMarketOperations(engine);
+export function createMarketOperations(client: BinanceClient): MarketOperations {
+  return new BinanceMarketOperations(client);
 }

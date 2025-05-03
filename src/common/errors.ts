@@ -1,18 +1,7 @@
-export class BinanceError extends Error {
-  constructor(
-    message: string,
-    public readonly code: number,
-    public readonly response?: unknown
-  ) {
-    super(message);
-    this.name = "BinanceError";
-  }
-}
-
-export class ValidationError extends Error {
+export class MarketDataError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "ValidationError";
+    this.name = "MarketDataError";
   }
 }
 
@@ -23,17 +12,14 @@ export class ConfigurationError extends Error {
   }
 }
 
-export class TradingError extends Error {
-  constructor(message: string, public readonly details?: unknown) {
+export class BinanceError extends Error {
+  constructor(
+    message: string,
+    public readonly code: number,
+    public readonly response?: unknown
+  ) {
     super(message);
-    this.name = "TradingError";
-  }
-}
-
-export class MarketDataError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "MarketDataError";
+    this.name = "BinanceError";
   }
 }
 

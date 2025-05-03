@@ -1,7 +1,7 @@
 {
   "name": "binance-mcp",
   "version": "1.0.0",
-  "description": "Binance Futures Trading MCP Server",
+  "description": "Binance Spot Market MCP Server",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
@@ -23,19 +23,13 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.10.1",
-    "@types/uuid": "^10.0.0",
     "binance-api-node": "^0.12.9",
-    "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7",
-    "uuid": "^11.1.0",
-    "ws": "^8.16.0",
     "zod": "^3.22.4",
     "zod-to-json-schema": "^3.22.3"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.16",
-    "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^6.20.0",
     "@typescript-eslint/parser": "^6.20.0",
     "eslint": "^8.56.0",

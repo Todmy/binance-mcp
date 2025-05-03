@@ -1,14 +1,14 @@
 # Binance MCP Server
 
-A Model Context Protocol (MCP) server implementation for Binance Futures trading.
+A Model Context Protocol (MCP) server implementation for Binance Spot Market operations.
 
 ## Features
 
-- Create, approve, and cancel trades
-- Monitor trading pairs
 - Get real-time price updates
-- Risk management and trade validation
-- WebSocket connection management
+- Access market statistics
+- View order book data
+- Get historical candlestick data
+- Simple configuration
 - Error handling and logging
 
 ## Installation
@@ -19,7 +19,7 @@ npm install
 
 ## Configuration
 
-Configure the server through VSCode settings. Add the following to your `.vscode/settings.json`:
+Configure the server by providing your Binance API credentials:
 
 ```json
 {
@@ -30,13 +30,6 @@ Configure the server through VSCode settings. Add the following to your `.vscode
       "env": {
         "BINANCE_API_KEY": "your_api_key",
         "BINANCE_API_SECRET": "your_api_secret"
-      },
-      "trading": {
-        "maxPositionSize": 10000,
-        "maxLeverage": 20,
-        "stopLossPercentage": 0.05,
-        "priceDeviationLimit": 0.02,
-        "dailyLossLimit": 1000
       }
     }
   }
@@ -45,42 +38,41 @@ Configure the server through VSCode settings. Add the following to your `.vscode
 
 ## Available Tools
 
-### Trading Operations
+### Market Data Tools
 
-1. `create_trade`
+1. `get_price`
 
-   - Create a new trade in pending status
-   - Parameters: symbol, side, type, quantity, price (for limit orders), stopLoss, takeProfit
+   - Get current price for a trading symbol
+   - Parameters: symbol (e.g., "BTCUSDT")
 
-2. `approve_trade`
+2. `get_daily_stats`
 
-   - Approve a pending trade for execution
-   - Parameters: id
+   - Get 24-hour statistics for a symbol
+   - Parameters: symbol
+   - Returns: price change, percentage change, high/low prices, volume
 
-3. `cancel_trade`
+3. `get_book_ticker`
 
-   - Cancel a pending trade
-   - Parameters: id
+   - Get best bid/ask prices and quantities
+   - Parameters: symbol
 
-4. `list_trades`
-   - List all trades (both pending and active)
+4. `get_candles`
+   - Get historical candlestick data
+   - Parameters:
+     - symbol: Trading pair
+     - interval: Time interval (1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M)
+     - limit: Number of candles (optional, max 1000)
+
+### Configuration Tools
+
+1. `set_configuration`
+
+   - Configure the server with API credentials
+   - Parameters: binance.apiKey, binance.apiSecret
+
+2. `get_configuration_status`
+   - Check if the server is configured
    - No parameters required
-
-### Market Operations
-
-1. `monitor_symbol`
-
-   - Start monitoring price updates for a trading symbol
-   - Parameters: symbol
-
-2. `stop_monitoring_symbol`
-
-   - Stop monitoring price updates for a trading symbol
-   - Parameters: symbol
-
-3. `get_current_price`
-   - Get the current price for a trading symbol
-   - Parameters: symbol
 
 ## Development
 
@@ -102,19 +94,16 @@ npm test
 
 The server handles various types of errors:
 
-- Trading errors (position size, leverage, etc.)
-- Market data errors
-- Binance API errors
-- Configuration errors
-- Validation errors
+- Market data errors (invalid symbol, no data available)
+- Configuration errors (missing or invalid credentials)
+- API errors (rate limits, server issues)
+- Validation errors (invalid parameters)
 
 ## Architecture
 
-- `src/core/`: Core trading engine and WebSocket management
-- `src/operations/`: Trading and market operations
-- `src/tools/`: MCP tool definitions
-- `src/common/`: Shared utilities, validation, and error handling
-- `src/config/`: Configuration management
+- `src/core/`: Core types and interfaces
+- `src/operations/`: Market operations
+- `src/common/`: Shared utilities and error handling
 
 ## Contributing
 

@@ -1,6 +1,7 @@
-import type { FuturesOrder as BinanceFuturesOrder, NewFuturesOrder, FuturesOrderParams } from 'binance-api-node';
+export type OrderType = 'LIMIT' | 'MARKET' | 'STOP_LOSS' | 'STOP_LOSS_LIMIT' | 'TAKE_PROFIT' | 'TAKE_PROFIT_LIMIT' | 'LIMIT_MAKER';
+export type OrderSide = 'BUY' | 'SELL';
 
-export interface FuturesBookTicker {
+export interface SpotBookTicker {
   symbol: string;
   bestBidPrice: string;
   bestBidQty: string;
@@ -9,27 +10,49 @@ export interface FuturesBookTicker {
   time: number;
 }
 
-export type { BinanceFuturesOrder as FuturesOrder };
-export type { NewFuturesOrder };
-export type { FuturesOrderParams };
+export interface SpotOrder {
+  symbol: string;
+  orderId: number;
+  clientOrderId: string;
+  price: string;
+  origQty: string;
+  executedQty: string;
+  status: 'NEW' | 'PARTIALLY_FILLED' | 'FILLED' | 'CANCELED' | 'REJECTED' | 'EXPIRED';
+  timeInForce: 'GTC' | 'IOC' | 'FOK';
+  type: OrderType;
+  side: OrderSide;
+  stopPrice: string;
+  time: number;
+  updateTime: number;
+  isWorking: boolean;
+}
+
+export interface NewSpotOrder {
+  symbol: string;
+  side: OrderSide;
+  type: OrderType;
+  quantity: string;
+  price?: string;
+  timeInForce?: 'GTC' | 'IOC' | 'FOK';
+  newClientOrderId?: string;
+  stopPrice?: string;
+  newOrderRespType?: 'ACK' | 'RESULT' | 'FULL';
+}
 
 export interface BinanceClient {
-  futuresAllBookTickers(): Promise<{ [key: string]: FuturesBookTicker }>;
-  futuresOrder(options: FuturesOrderParams): Promise<BinanceFuturesOrder>;
-  futuresCandles(options: {
-    symbol: string;
-    interval: string;
-    limit?: number;
-    startTime?: number;
-    endTime?: number;
-  }): Promise<Array<[number, string, string, string, string, string, number, string, number, string, string, string]>>;
-  futures24hr(): Promise<Array<{
+  prices(): Promise<{ [key: string]: string }>;
+  dailyStats(): Promise<Array<{
     symbol: string;
     priceChange: string;
     priceChangePercent: string;
     weightedAvgPrice: string;
+    prevClosePrice: string;
     lastPrice: string;
     lastQty: string;
+    bidPrice: string;
+    bidQty: string;
+    askPrice: string;
+    askQty: string;
     openPrice: string;
     highPrice: string;
     lowPrice: string;
@@ -40,5 +63,47 @@ export interface BinanceClient {
     firstId: number;
     lastId: number;
     count: number;
+  }>>;
+  bookTickers(): Promise<Array<SpotBookTicker>>;
+  candles(options: {
+    symbol: string;
+    interval: string;
+    limit?: number;
+    startTime?: number;
+    endTime?: number;
+  }): Promise<Array<{
+    openTime: number;
+    open: string;
+    high: string;
+    low: string;
+    close: string;
+    volume: string;
+    closeTime: number;
+    quoteVolume: string;
+    trades: number;
+    baseAssetVolume: string;
+    quoteAssetVolume: string;
+  }>>;
+  order(options: NewSpotOrder): Promise<SpotOrder>;
+  cancelOrder(options: {
+    symbol: string;
+    orderId?: number;
+    origClientOrderId?: string;
+  }): Promise<SpotOrder>;
+  myTrades(options: {
+    symbol: string;
+    limit?: number;
+    fromId?: number;
+  }): Promise<Array<{
+    id: number;
+    orderId: number;
+    price: string;
+    qty: string;
+    commission: string;
+    commissionAsset: string;
+    time: number;
+    isBuyer: boolean;
+    isMaker: boolean;
+    isBestMatch: boolean;
   }>>;
 }

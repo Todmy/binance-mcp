@@ -1,76 +1,102 @@
 declare module 'binance-api-node' {
-  export interface FuturesOrder {
+  export type OrderType = 'LIMIT' | 'MARKET' | 'STOP_LOSS' | 'STOP_LOSS_LIMIT' | 'TAKE_PROFIT' | 'TAKE_PROFIT_LIMIT' | 'LIMIT_MAKER';
+  export type OrderSide = 'BUY' | 'SELL';
+  export type TimeInForce = 'GTC' | 'IOC' | 'FOK';
+
+  export interface SpotOrder {
     symbol: string;
     orderId: number;
     clientOrderId: string;
-    transactTime: number;
     price: string;
     origQty: string;
     executedQty: string;
-    status: string;
-    timeInForce: string;
-    type: string;
-    side: string;
+    status: 'NEW' | 'PARTIALLY_FILLED' | 'FILLED' | 'CANCELED' | 'REJECTED' | 'EXPIRED';
+    timeInForce: TimeInForce;
+    type: OrderType;
+    side: OrderSide;
     stopPrice?: string;
-    closePosition?: boolean;
-    activatePrice?: string;
-    priceRate?: string;
-    workingType?: string;
-    priceProtect?: boolean;
+    time: number;
+    updateTime: number;
+    isWorking: boolean;
   }
 
-  export interface NewFuturesOrder {
+  export interface NewSpotOrder {
     symbol: string;
-    side: 'BUY' | 'SELL';
-    type: 'LIMIT' | 'MARKET' | 'STOP' | 'STOP_MARKET' | 'TAKE_PROFIT' | 'TAKE_PROFIT_MARKET';
-    quantity: string | number;
-    price?: string | number;
-    timeInForce?: 'GTC' | 'IOC' | 'FOK';
-    stopPrice?: string | number;
-    closePosition?: boolean;
-    activationPrice?: string | number;
-    callbackRate?: string | number;
-    workingType?: 'MARK_PRICE' | 'CONTRACT_PRICE';
-    priceProtect?: boolean;
+    side: OrderSide;
+    type: OrderType;
+    quantity: string;
+    price?: string;
+    timeInForce?: TimeInForce;
     newClientOrderId?: string;
-    reduceOnly?: boolean;
-    positionSide?: 'BOTH' | 'LONG' | 'SHORT';
+    stopPrice?: string;
+    newOrderRespType?: 'ACK' | 'RESULT' | 'FULL';
   }
 
-  export type TimeInForce = 'GTC' | 'IOC' | 'FOK';
+  export interface CandleChartResult {
+    openTime: number;
+    open: string;
+    high: string;
+    low: string;
+    close: string;
+    volume: string;
+    closeTime: number;
+    quoteVolume: string;
+    trades: number;
+    baseAssetVolume: string;
+    quoteAssetVolume: string;
+  }
 
   export interface BinanceAPI {
-    futuresOrder(options: NewFuturesOrder): Promise<FuturesOrder>;
-    ws: {
-      futuresTicker(symbol: string, callback: (ticker: any) => void): void;
-      futuresCandles(symbol: string, interval: string, callback: (candle: any) => void): void;
-    };
+    prices(): Promise<{ [key: string]: string }>;
+    dailyStats(): Promise<Array<{
+      symbol: string;
+      priceChange: string;
+      priceChangePercent: string;
+      weightedAvgPrice: string;
+      prevClosePrice: string;
+      lastPrice: string;
+      lastQty: string;
+      bidPrice: string;
+      bidQty: string;
+      askPrice: string;
+      askQty: string;
+      openPrice: string;
+      highPrice: string;
+      lowPrice: string;
+      volume: string;
+      quoteVolume: string;
+      openTime: number;
+      closeTime: number;
+      firstId: number;
+      lastId: number;
+      count: number;
+    }>>;
+    bookTickers(): Promise<Array<{
+      symbol: string;
+      bidPrice: string;
+      bidQty: string;
+      askPrice: string;
+      askQty: string;
+    }>>;
+    candles(options: {
+      symbol: string;
+      interval: string;
+      limit?: number;
+      startTime?: number;
+      endTime?: number;
+    }): Promise<CandleChartResult[]>;
+    order(options: NewSpotOrder): Promise<SpotOrder>;
+    cancelOrder(options: {
+      symbol: string;
+      orderId?: number;
+      origClientOrderId?: string;
+    }): Promise<SpotOrder>;
   }
 
   export default function Binance(options?: {
     apiKey?: string;
     apiSecret?: string;
     getTime?: () => number | Promise<number>;
-    httpFutures?: string;
-    wsFutures?: string;
     httpBase?: string;
   }): BinanceAPI;
-
-  export interface FuturesOrderParams {
-    symbol: string;
-    side: 'BUY' | 'SELL';
-    type: 'LIMIT' | 'MARKET' | 'STOP' | 'STOP_MARKET' | 'TAKE_PROFIT' | 'TAKE_PROFIT_MARKET';
-    quantity: string;
-    price?: string;
-    timeInForce?: TimeInForce;
-    stopPrice?: string;
-    closePosition?: boolean;
-    activationPrice?: string;
-    callbackRate?: string;
-    workingType?: 'MARK_PRICE' | 'CONTRACT_PRICE';
-    priceProtect?: boolean;
-    newClientOrderId?: string;
-    reduceOnly?: string | boolean;
-    positionSide?: 'BOTH' | 'LONG' | 'SHORT';
-  }
 }
