@@ -8,12 +8,15 @@ import { BinanceClient } from './core/binance-types';
 import { createMarketOperations } from './operations/market';
 import { MarketDataError } from './common/errors';
 import Binance from 'binance-api-node';
+import { PredictionTracker } from './predictions/prediction-tracker';
+import { RecommendationService } from './predictions/recommendation-service';
+import { PredictionType } from './types/predictions';
 
 // Market tools
 const MARKET_TOOLS = [
   {
     name: 'get_price',
-    description: 'Get current price for a symbol',
+    description: 'Get current futures price for a trading symbol',
     inputSchema: {
       type: 'object',
       properties: {
@@ -24,7 +27,7 @@ const MARKET_TOOLS = [
   },
   {
     name: 'get_daily_stats',
-    description: 'Get 24h price statistics for a symbol',
+    description: 'Get 24h futures statistics for a symbol',
     inputSchema: {
       type: 'object',
       properties: {
@@ -35,7 +38,7 @@ const MARKET_TOOLS = [
   },
   {
     name: 'get_book_ticker',
-    description: 'Get current best price/qty on the order book',
+    description: 'Get best bid/ask prices and quantities for futures',
     inputSchema: {
       type: 'object',
       properties: {
@@ -46,7 +49,7 @@ const MARKET_TOOLS = [
   },
   {
     name: 'get_candles',
-    description: 'Get candlestick data for a symbol',
+    description: 'Get historical futures candlestick data',
     inputSchema: {
       type: 'object',
       properties: {
@@ -62,6 +65,70 @@ const MARKET_TOOLS = [
         }
       },
       required: ['symbol', 'interval']
+    }
+  }
+];
+
+// Prediction tools
+const PREDICTION_TOOLS = [
+  {
+    name: 'create_prediction',
+    description: 'Create a new price prediction',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        symbol: { type: 'string' },
+        type: {
+          type: 'string',
+          enum: [PredictionType.PRICE_TARGET, PredictionType.TREND_DIRECTION, PredictionType.SUPPORT_RESISTANCE]
+        },
+        validityPeriod: { type: 'number' },
+        metadata: {
+          type: 'object',
+          properties: {
+            targetPrice: { type: 'string' },
+            direction: { type: 'string', enum: ['UP', 'DOWN', 'SIDEWAYS'] },
+            supportLevel: { type: 'string' },
+            resistanceLevel: { type: 'string' },
+            timeframe: { type: 'string' }
+          }
+        },
+        context: { type: 'string' }
+      },
+      required: ['symbol', 'type', 'validityPeriod', 'metadata']
+    }
+  },
+  {
+    name: 'evaluate_prediction',
+    description: 'Evaluate a prediction result',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        predictionId: { type: 'string' }
+      },
+      required: ['predictionId']
+    }
+  },
+  {
+    name: 'get_prediction_stats',
+    description: 'Get prediction statistics for a symbol',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        symbol: { type: 'string' }
+      },
+      required: ['symbol']
+    }
+  },
+  {
+    name: 'get_recommendation',
+    description: 'Get trading recommendation based on prediction history',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        symbol: { type: 'string' }
+      },
+      required: ['symbol']
     }
   }
 ];
@@ -100,6 +167,8 @@ class BinanceMCPServer {
   private server: Server;
   private client?: BinanceClient;
   private market?: ReturnType<typeof createMarketOperations>;
+  private predictionTracker?: PredictionTracker;
+  private recommendationService?: RecommendationService;
   private isConfigured: boolean = false;
 
   constructor() {
@@ -122,9 +191,13 @@ class BinanceMCPServer {
       this.client = Binance({
         apiKey: binanceConfig.apiKey,
         apiSecret: binanceConfig.apiSecret,
+        httpFutures: 'https://fapi.binance.com',
+        wsFutures: 'wss://fstream.binance.com'
       }) as unknown as BinanceClient;
 
       this.market = createMarketOperations(this.client);
+      this.predictionTracker = new PredictionTracker(this.client);
+      this.recommendationService = new RecommendationService(this.client, this.predictionTracker);
       this.isConfigured = true;
       return true;
     } catch (error) {
@@ -135,7 +208,7 @@ class BinanceMCPServer {
 
   private getAvailableTools(): any[] {
     if (this.isConfigured) {
-      return [...CONFIG_TOOLS, ...MARKET_TOOLS];
+      return [...CONFIG_TOOLS, ...MARKET_TOOLS, ...PREDICTION_TOOLS];
     }
     return CONFIG_TOOLS;
   }
@@ -173,9 +246,9 @@ class BinanceMCPServer {
           };
         }
 
-        // Ensure server is configured for market operations
-        if (!this.isConfigured || !this.client || !this.market) {
-          throw new Error('Server must be configured before using market operations');
+        // Ensure server is configured for operations
+        if (!this.isConfigured || !this.client || !this.market || !this.predictionTracker || !this.recommendationService) {
+          throw new Error('Server must be configured before using operations');
         }
 
         // Handle market tools
@@ -212,6 +285,74 @@ class BinanceMCPServer {
             });
             return {
               content: [{ type: 'text', text: JSON.stringify(candles, null, 2) }],
+            };
+
+          // Handle prediction tools
+          case 'create_prediction':
+            if (!args?.symbol || typeof args.symbol !== 'string' ||
+              !args?.type || typeof args.type !== 'string' ||
+              !args?.validityPeriod || typeof args.validityPeriod !== 'number' ||
+              !args?.metadata || typeof args.metadata !== 'object' ||
+              !Object.keys(args.metadata).length) {
+              throw new Error('Required prediction parameters missing');
+            }
+
+            // Get current price for the prediction
+            const currentPrice = await this.market.getPrice(args.symbol);
+
+            // Type the metadata object
+            const metadata = args.metadata as {
+              targetPrice?: string;
+              direction?: 'UP' | 'DOWN' | 'SIDEWAYS';
+              supportLevel?: string;
+              resistanceLevel?: string;
+              timeframe?: string;
+              expectedPercentage?: string;
+            };
+
+            // Construct proper metadata structure
+            const predictionMetadata = {
+              currentPrice,
+              predictionDetails: {
+                targetPrice: metadata.targetPrice,
+                direction: metadata.direction,
+                supportLevel: metadata.supportLevel,
+                resistanceLevel: metadata.resistanceLevel,
+                timeframe: metadata.timeframe,
+                expectedPercentage: metadata.expectedPercentage
+              }
+            };
+
+            const prediction = await this.predictionTracker.createPrediction(
+              args.symbol,
+              args.type as PredictionType,
+              args.validityPeriod,
+              predictionMetadata,
+              typeof args.context === 'string' ? args.context : undefined
+            );
+            return {
+              content: [{ type: 'text', text: JSON.stringify(prediction, null, 2) }],
+            };
+
+          case 'evaluate_prediction':
+            if (!args?.predictionId || typeof args.predictionId !== 'string') throw new Error('Prediction ID is required');
+            const result = await this.predictionTracker.evaluatePrediction(args.predictionId);
+            return {
+              content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+            };
+
+          case 'get_prediction_stats':
+            if (!args?.symbol || typeof args.symbol !== 'string') throw new Error('Symbol is required');
+            const predictionStats = this.predictionTracker.getSymbolStats(args.symbol);
+            return {
+              content: [{ type: 'text', text: JSON.stringify(predictionStats, null, 2) }],
+            };
+
+          case 'get_recommendation':
+            if (!args?.symbol || typeof args.symbol !== 'string') throw new Error('Symbol is required');
+            const recommendation = await this.recommendationService.generateRecommendation(args.symbol);
+            return {
+              content: [{ type: 'text', text: JSON.stringify(recommendation, null, 2) }],
             };
 
           default:
