@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { MarketDataError } from '../common/errors';
-import { BinanceClient, SpotBookTicker } from '../core/binance-types';
+import { BinanceClient, FuturesBookTicker } from '../core/binance-types';
 
 export const SymbolSchema = z.object({
   symbol: z.string().min(1)
@@ -16,7 +16,7 @@ export interface MarketOperations {
     highPrice: string;
     lowPrice: string;
   }>;
-  getBookTicker(symbol: string): Promise<SpotBookTicker>;
+  getBookTicker(symbol: string): Promise<FuturesBookTicker>;
   getCandles(params: {
     symbol: string;
     interval: string;
@@ -36,14 +36,14 @@ export class BinanceMarketOperations implements MarketOperations {
 
   async getPrice(symbol: string): Promise<string> {
     try {
-      const prices = await this.client.prices();
-      const price = prices[symbol];
+      const tickers = await this.client.futuresAllBookTickers();
+      const ticker = tickers[symbol];
 
-      if (!price) {
+      if (!ticker) {
         throw new MarketDataError(`No price data available for ${symbol}`);
       }
 
-      return price;
+      return ticker.bestBidPrice; // Using best bid as current price
     } catch (error) {
       throw new MarketDataError(`Failed to get price for ${symbol}: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -58,7 +58,7 @@ export class BinanceMarketOperations implements MarketOperations {
     lowPrice: string;
   }> {
     try {
-      const allStats = await this.client.dailyStats();
+      const allStats = await this.client.futures24hr();
       const stats = allStats.find(stat => stat.symbol === symbol);
 
       if (!stats) {
@@ -78,16 +78,23 @@ export class BinanceMarketOperations implements MarketOperations {
     }
   }
 
-  async getBookTicker(symbol: string): Promise<SpotBookTicker> {
+  async getBookTicker(symbol: string): Promise<FuturesBookTicker> {
     try {
-      const tickers = await this.client.bookTickers();
-      const ticker = tickers.find(t => t.symbol === symbol);
+      const tickers = await this.client.futuresAllBookTickers();
+      const ticker = tickers[symbol];
 
       if (!ticker) {
         throw new MarketDataError(`No book ticker available for ${symbol}`);
       }
 
-      return ticker;
+      return {
+        symbol: ticker.symbol,
+        bestBidPrice: ticker.bestBidPrice,
+        bestBidQty: ticker.bestBidQty,
+        bestAskPrice: ticker.bestAskPrice,
+        bestAskQty: ticker.bestAskQty,
+        time: ticker.time
+      };
     } catch (error) {
       throw new MarketDataError(`Failed to get book ticker for ${symbol}: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -106,7 +113,7 @@ export class BinanceMarketOperations implements MarketOperations {
     volume: string;
   }>> {
     try {
-      const candles = await this.client.candles(params);
+      const candles = await this.client.futuresCandles(params);
       return candles.map(candle => ({
         openTime: candle.openTime,
         open: candle.open,

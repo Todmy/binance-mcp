@@ -1,7 +1,6 @@
-export type OrderType = 'LIMIT' | 'MARKET' | 'STOP_LOSS' | 'STOP_LOSS_LIMIT' | 'TAKE_PROFIT' | 'TAKE_PROFIT_LIMIT' | 'LIMIT_MAKER';
-export type OrderSide = 'BUY' | 'SELL';
+import type { OrderType, OrderSide, TimeInForce, PositionSide, WorkingType } from 'binance-api-node';
 
-export interface SpotBookTicker {
+export interface FuturesBookTicker {
   symbol: string;
   bestBidPrice: string;
   bestBidQty: string;
@@ -10,7 +9,7 @@ export interface SpotBookTicker {
   time: number;
 }
 
-export interface SpotOrder {
+export interface FuturesOrder {
   symbol: string;
   orderId: number;
   clientOrderId: string;
@@ -18,54 +17,41 @@ export interface SpotOrder {
   origQty: string;
   executedQty: string;
   status: 'NEW' | 'PARTIALLY_FILLED' | 'FILLED' | 'CANCELED' | 'REJECTED' | 'EXPIRED';
-  timeInForce: 'GTC' | 'IOC' | 'FOK';
+  timeInForce: TimeInForce;
   type: OrderType;
   side: OrderSide;
-  stopPrice: string;
+  stopPrice?: string;
+  closePosition?: boolean;
+  activatePrice?: string;
+  priceRate?: string;
+  workingType?: WorkingType;
+  priceProtect?: boolean;
+  positionSide?: PositionSide;
   time: number;
-  updateTime: number;
-  isWorking: boolean;
+  updateTime?: number;
 }
 
-export interface NewSpotOrder {
+export interface NewFuturesOrder {
   symbol: string;
   side: OrderSide;
   type: OrderType;
   quantity: string;
   price?: string;
-  timeInForce?: 'GTC' | 'IOC' | 'FOK';
-  newClientOrderId?: string;
+  timeInForce?: TimeInForce;
   stopPrice?: string;
-  newOrderRespType?: 'ACK' | 'RESULT' | 'FULL';
+  closePosition?: boolean;
+  activationPrice?: string;
+  callbackRate?: string;
+  workingType?: WorkingType;
+  priceProtect?: boolean;
+  newClientOrderId?: string;
+  reduceOnly?: boolean;
+  positionSide?: PositionSide;
 }
 
 export interface BinanceClient {
-  prices(): Promise<{ [key: string]: string }>;
-  dailyStats(): Promise<Array<{
-    symbol: string;
-    priceChange: string;
-    priceChangePercent: string;
-    weightedAvgPrice: string;
-    prevClosePrice: string;
-    lastPrice: string;
-    lastQty: string;
-    bidPrice: string;
-    bidQty: string;
-    askPrice: string;
-    askQty: string;
-    openPrice: string;
-    highPrice: string;
-    lowPrice: string;
-    volume: string;
-    quoteVolume: string;
-    openTime: number;
-    closeTime: number;
-    firstId: number;
-    lastId: number;
-    count: number;
-  }>>;
-  bookTickers(): Promise<Array<SpotBookTicker>>;
-  candles(options: {
+  futuresAllBookTickers(): Promise<{ [key: string]: FuturesBookTicker }>;
+  futuresCandles(options: {
     symbol: string;
     interval: string;
     limit?: number;
@@ -84,26 +70,28 @@ export interface BinanceClient {
     baseAssetVolume: string;
     quoteAssetVolume: string;
   }>>;
-  order(options: NewSpotOrder): Promise<SpotOrder>;
-  cancelOrder(options: {
+  futures24hr(): Promise<Array<{
+    symbol: string;
+    priceChange: string;
+    priceChangePercent: string;
+    weightedAvgPrice: string;
+    lastPrice: string;
+    lastQty: string;
+    openPrice: string;
+    highPrice: string;
+    lowPrice: string;
+    volume: string;
+    quoteVolume: string;
+    openTime: number;
+    closeTime: number;
+    firstId: number;
+    lastId: number;
+    count: number;
+  }>>;
+  futuresOrder(options: NewFuturesOrder): Promise<FuturesOrder>;
+  futuresCancelOrder(options: {
     symbol: string;
     orderId?: number;
     origClientOrderId?: string;
-  }): Promise<SpotOrder>;
-  myTrades(options: {
-    symbol: string;
-    limit?: number;
-    fromId?: number;
-  }): Promise<Array<{
-    id: number;
-    orderId: number;
-    price: string;
-    qty: string;
-    commission: string;
-    commissionAsset: string;
-    time: number;
-    isBuyer: boolean;
-    isMaker: boolean;
-    isBestMatch: boolean;
-  }>>;
+  }): Promise<FuturesOrder>;
 }

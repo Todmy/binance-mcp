@@ -1,12 +1,12 @@
 # Binance MCP Server
 
-A Model Context Protocol (MCP) server implementation for Binance Spot Market operations.
+A Model Context Protocol (MCP) server implementation for Binance Futures trading.
 
 ## Features
 
-- Get real-time price updates
-- Access market statistics
-- View order book data
+- Get real-time futures market prices
+- Access futures market statistics
+- View futures order book data
 - Get historical candlestick data
 - Simple configuration
 - Error handling and logging
@@ -42,22 +42,22 @@ Configure the server by providing your Binance API credentials:
 
 1. `get_price`
 
-   - Get current price for a trading symbol
+   - Get current futures price for a trading symbol
    - Parameters: symbol (e.g., "BTCUSDT")
 
 2. `get_daily_stats`
 
-   - Get 24-hour statistics for a symbol
+   - Get 24-hour futures statistics for a symbol
    - Parameters: symbol
    - Returns: price change, percentage change, high/low prices, volume
 
 3. `get_book_ticker`
 
-   - Get best bid/ask prices and quantities
+   - Get best bid/ask prices and quantities for futures
    - Parameters: symbol
 
 4. `get_candles`
-   - Get historical candlestick data
+   - Get historical futures candlestick data
    - Parameters:
      - symbol: Trading pair
      - interval: Time interval (1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M)
@@ -101,7 +101,7 @@ The server handles various types of errors:
 
 ## Architecture
 
-- `src/core/`: Core types and interfaces
+- `src/core/`: Core types and futures trading interfaces
 - `src/operations/`: Market operations
 - `src/common/`: Shared utilities and error handling
 

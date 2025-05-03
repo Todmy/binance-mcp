@@ -1,12 +1,15 @@
 declare module 'binance-api-node' {
-  export type OrderType = 'LIMIT' | 'MARKET' | 'STOP_LOSS' | 'STOP_LOSS_LIMIT' | 'TAKE_PROFIT' | 'TAKE_PROFIT_LIMIT' | 'LIMIT_MAKER';
+  export type OrderType = 'LIMIT' | 'MARKET' | 'STOP' | 'STOP_MARKET' | 'TAKE_PROFIT' | 'TAKE_PROFIT_MARKET';
   export type OrderSide = 'BUY' | 'SELL';
   export type TimeInForce = 'GTC' | 'IOC' | 'FOK';
+  export type PositionSide = 'BOTH' | 'LONG' | 'SHORT';
+  export type WorkingType = 'MARK_PRICE' | 'CONTRACT_PRICE';
 
-  export interface SpotOrder {
+  export interface FuturesOrder {
     symbol: string;
     orderId: number;
     clientOrderId: string;
+    transactTime: number;
     price: string;
     origQty: string;
     executedQty: string;
@@ -15,24 +18,33 @@ declare module 'binance-api-node' {
     type: OrderType;
     side: OrderSide;
     stopPrice?: string;
-    time: number;
-    updateTime: number;
-    isWorking: boolean;
+    closePosition?: boolean;
+    activatePrice?: string;
+    priceRate?: string;
+    workingType?: WorkingType;
+    priceProtect?: boolean;
+    positionSide?: PositionSide;
   }
 
-  export interface NewSpotOrder {
+  export interface NewFuturesOrder {
     symbol: string;
     side: OrderSide;
     type: OrderType;
-    quantity: string;
-    price?: string;
+    quantity: string | number;
+    price?: string | number;
     timeInForce?: TimeInForce;
+    stopPrice?: string | number;
+    closePosition?: boolean;
+    activationPrice?: string | number;
+    callbackRate?: string | number;
+    workingType?: WorkingType;
+    priceProtect?: boolean;
     newClientOrderId?: string;
-    stopPrice?: string;
-    newOrderRespType?: 'ACK' | 'RESULT' | 'FULL';
+    reduceOnly?: boolean;
+    positionSide?: PositionSide;
   }
 
-  export interface CandleChartResult {
+  export interface FuturesCandle {
     openTime: number;
     open: string;
     high: string;
@@ -47,19 +59,30 @@ declare module 'binance-api-node' {
   }
 
   export interface BinanceAPI {
-    prices(): Promise<{ [key: string]: string }>;
-    dailyStats(): Promise<Array<{
+    futuresAllBookTickers(): Promise<{
+      [key: string]: {
+        symbol: string;
+        bidPrice: string;
+        bidQty: string;
+        askPrice: string;
+        askQty: string;
+        time: number;
+      }
+    }>;
+    futuresCandles(options: {
+      symbol: string;
+      interval: string;
+      limit?: number;
+      startTime?: number;
+      endTime?: number;
+    }): Promise<FuturesCandle[]>;
+    futures24hr(): Promise<Array<{
       symbol: string;
       priceChange: string;
       priceChangePercent: string;
       weightedAvgPrice: string;
-      prevClosePrice: string;
       lastPrice: string;
       lastQty: string;
-      bidPrice: string;
-      bidQty: string;
-      askPrice: string;
-      askQty: string;
       openPrice: string;
       highPrice: string;
       lowPrice: string;
@@ -71,32 +94,20 @@ declare module 'binance-api-node' {
       lastId: number;
       count: number;
     }>>;
-    bookTickers(): Promise<Array<{
-      symbol: string;
-      bidPrice: string;
-      bidQty: string;
-      askPrice: string;
-      askQty: string;
-    }>>;
-    candles(options: {
-      symbol: string;
-      interval: string;
-      limit?: number;
-      startTime?: number;
-      endTime?: number;
-    }): Promise<CandleChartResult[]>;
-    order(options: NewSpotOrder): Promise<SpotOrder>;
-    cancelOrder(options: {
+    futuresOrder(options: NewFuturesOrder): Promise<FuturesOrder>;
+    futuresCancelOrder(options: {
       symbol: string;
       orderId?: number;
       origClientOrderId?: string;
-    }): Promise<SpotOrder>;
+    }): Promise<FuturesOrder>;
   }
 
   export default function Binance(options?: {
     apiKey?: string;
     apiSecret?: string;
     getTime?: () => number | Promise<number>;
+    httpFutures?: string;
+    wsFutures?: string;
     httpBase?: string;
   }): BinanceAPI;
 }
