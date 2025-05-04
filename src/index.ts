@@ -11,6 +11,10 @@ import Binance from 'binance-api-node';
 import { PredictionTracker } from './predictions/prediction-tracker';
 import { RecommendationService } from './predictions/recommendation-service';
 import { PredictionType } from './types/predictions';
+import { BinanceTradingService } from './trading/trading-service';
+import { BinancePositionManager } from './trading/position-manager';
+import { RiskManagementService } from './risk/risk-management-service';
+import { RiskCalculator } from './risk/risk-calculator';
 
 // Market tools
 const MARKET_TOOLS = [
@@ -134,6 +138,83 @@ const PREDICTION_TOOLS = [
 ];
 
 // Configuration tools
+const TRADING_TOOLS = [
+  {
+    name: 'create_futures_order',
+    description: 'Create a new futures order',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        symbol: { type: 'string' },
+        side: { type: 'string', enum: ['BUY', 'SELL'] },
+        type: { type: 'string', enum: ['LIMIT', 'MARKET', 'STOP', 'TAKE_PROFIT'] },
+        quantity: { type: 'string' },
+        price: { type: 'string' },
+        timeInForce: { type: 'string', enum: ['GTC', 'IOC', 'FOK'] },
+        stopPrice: { type: 'string' },
+        positionSide: { type: 'string', enum: ['BOTH', 'LONG', 'SHORT'] }
+      },
+      required: ['symbol', 'side', 'type', 'quantity']
+    }
+  },
+  {
+    name: 'cancel_futures_order',
+    description: 'Cancel an existing futures order',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        symbol: { type: 'string' },
+        orderId: { type: 'number' }
+      },
+      required: ['symbol', 'orderId']
+    }
+  },
+  {
+    name: 'get_futures_order_status',
+    description: 'Get the status of a futures order',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        symbol: { type: 'string' },
+        orderId: { type: 'number' }
+      },
+      required: ['symbol', 'orderId']
+    }
+  },
+  {
+    name: 'get_open_futures_orders',
+    description: 'Get all open futures orders',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        symbol: { type: 'string' }
+      }
+    }
+  },
+  {
+    name: 'get_futures_position',
+    description: 'Get current futures position for a symbol',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        symbol: { type: 'string' }
+      },
+      required: ['symbol']
+    }
+  },
+  {
+    name: 'get_futures_position_risk',
+    description: 'Get risk information for a futures position',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        symbol: { type: 'string' }
+      },
+      required: ['symbol']
+    }
+  }
+];
+
 const CONFIG_TOOLS = [
   {
     name: 'set_configuration',
@@ -169,6 +250,10 @@ class BinanceMCPServer {
   private market?: ReturnType<typeof createMarketOperations>;
   private predictionTracker?: PredictionTracker;
   private recommendationService?: RecommendationService;
+  private tradingService?: BinanceTradingService;
+  private positionManager?: BinancePositionManager;
+  private riskManagementService?: RiskManagementService;
+  private riskCalculator?: RiskCalculator;
   private isConfigured: boolean = false;
 
   constructor() {
@@ -195,9 +280,40 @@ class BinanceMCPServer {
         wsFutures: 'wss://fstream.binance.com'
       }) as unknown as BinanceClient;
 
+      if (!this.client) {
+        return false;
+      }
+
       this.market = createMarketOperations(this.client);
+
+      // Initialize services in correct order
+      this.riskCalculator = new RiskCalculator(this.client);
+      this.riskManagementService = new RiskManagementService(this.client);
+
+      // Initialize position manager with required dependencies
+      if (this.riskCalculator) {
+        this.positionManager = new BinancePositionManager(
+          this.client,
+          this.riskCalculator
+        );
+      }
+
+      // Initialize prediction services
       this.predictionTracker = new PredictionTracker(this.client);
-      this.recommendationService = new RecommendationService(this.client, this.predictionTracker);
+      this.recommendationService = new RecommendationService(
+        this.client,
+        this.predictionTracker
+      );
+
+      // Initialize trading service with all required dependencies
+      if (this.positionManager && this.riskManagementService) {
+        this.tradingService = new BinanceTradingService(
+          this.client,
+          this.positionManager,
+          this.riskManagementService
+        );
+      }
+
       this.isConfigured = true;
       return true;
     } catch (error) {
@@ -208,7 +324,7 @@ class BinanceMCPServer {
 
   private getAvailableTools(): any[] {
     if (this.isConfigured) {
-      return [...CONFIG_TOOLS, ...MARKET_TOOLS, ...PREDICTION_TOOLS];
+      return [...CONFIG_TOOLS, ...MARKET_TOOLS, ...PREDICTION_TOOLS, ...TRADING_TOOLS];
     }
     return CONFIG_TOOLS;
   }
@@ -353,6 +469,106 @@ class BinanceMCPServer {
             const recommendation = await this.recommendationService.generateRecommendation(args.symbol);
             return {
               content: [{ type: 'text', text: JSON.stringify(recommendation, null, 2) }],
+            };
+
+          // Handle trading tools
+          case 'create_futures_order':
+            if (!this.tradingService) throw new Error('Trading service not initialized');
+            if (!args?.symbol || !args?.side || !args?.type || !args?.quantity) {
+              throw new Error('Required order parameters missing');
+            }
+
+            const order = await this.tradingService.createOrder({
+              symbol: args.symbol as string,
+              side: args.side as 'BUY' | 'SELL',
+              type: args.type as 'LIMIT' | 'MARKET' | 'STOP' | 'TAKE_PROFIT',
+              quantity: args.quantity as string,
+              price: args.price as string | undefined,
+              timeInForce: args.timeInForce as 'GTC' | 'IOC' | 'FOK' | undefined,
+              stopPrice: args.stopPrice as string | undefined,
+              positionSide: args.positionSide as 'BOTH' | 'LONG' | 'SHORT' | undefined
+            });
+            return {
+              content: [{ type: 'text', text: JSON.stringify(order, null, 2) }],
+            };
+
+          case 'cancel_futures_order':
+            if (!this.tradingService) throw new Error('Trading service not initialized');
+            if (!args?.symbol || !args?.orderId) throw new Error('Symbol and orderId are required');
+            const cancelled = await this.tradingService.cancelOrder(
+              args.orderId.toString(),
+              args.symbol as string
+            );
+            return {
+              content: [{ type: 'text', text: `Order ${cancelled ? 'cancelled' : 'not cancelled'}` }],
+            };
+
+          case 'get_futures_order_status':
+            if (!this.tradingService) throw new Error('Trading service not initialized');
+            if (!args?.symbol || !args?.orderId) throw new Error('Symbol and orderId are required');
+            const orderStatus = await this.tradingService.getOrderStatus(
+              args.orderId.toString(),
+              args.symbol as string
+            );
+            return {
+              content: [{ type: 'text', text: JSON.stringify(orderStatus, null, 2) }],
+            };
+
+          case 'get_open_futures_orders':
+            if (!this.tradingService) throw new Error('Trading service not initialized');
+            const openOrders = await this.tradingService.getOpenOrders(args?.symbol as string | undefined);
+            return {
+              content: [{ type: 'text', text: JSON.stringify(openOrders, null, 2) }],
+            };
+
+          case 'get_futures_position':
+            if (!this.tradingService) throw new Error('Trading service not initialized');
+            if (!args?.symbol) throw new Error('Symbol is required');
+            const position = await this.tradingService.getCurrentPosition(args.symbol as string);
+            return {
+              content: [{ type: 'text', text: JSON.stringify(position, null, 2) }],
+            };
+
+          case 'get_futures_position_risk':
+            if (!this.tradingService) throw new Error('Trading service not initialized');
+            if (!args?.symbol) throw new Error('Symbol is required');
+            const positionRisk = await this.tradingService.getPositionRisk(args.symbol as string);
+            return {
+              content: [{ type: 'text', text: JSON.stringify(positionRisk, null, 2) }],
+            };
+
+          // Handle position management tools
+          case 'set_leverage':
+            if (!this.tradingService) throw new Error('Trading service not initialized');
+            if (!args?.symbol || !args?.leverage) throw new Error('Symbol and leverage are required');
+            const leverageSuccess = await this.tradingService.setLeverage(
+              args.symbol as string,
+              parseInt(args.leverage as string, 10)
+            );
+            return {
+              content: [{
+                type: 'text',
+                text: leverageSuccess ?
+                  `Leverage set to ${args.leverage} for ${args.symbol}` :
+                  'Failed to set leverage'
+              }]
+            };
+
+          case 'set_margin_type':
+            if (!this.tradingService) throw new Error('Trading service not initialized');
+            if (!args?.symbol || !args?.marginType) throw new Error('Symbol and marginType are required');
+            const marginType = args.marginType as 'ISOLATED' | 'CROSS';
+            const marginSuccess = await this.tradingService.setMarginType(
+              args.symbol as string,
+              marginType
+            );
+            return {
+              content: [{
+                type: 'text',
+                text: marginSuccess ?
+                  `Margin type set to ${marginType} for ${args.symbol}` :
+                  'Failed to set margin type'
+              }]
             };
 
           default:

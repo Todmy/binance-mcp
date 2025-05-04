@@ -1,8 +1,8 @@
-# Binance MCP Server API Documentation
+# Binance Futures MCP Server API Documentation
 
 ## Overview
 
-This Model Context Protocol (MCP) server provides interfaces for interacting with Binance Futures trading. It supports market data retrieval, prediction tracking, and trading recommendations.
+This Model Context Protocol (MCP) server provides specialized interfaces for futures trading on Binance. It supports leveraged trading, position management, futures market data retrieval, and advanced risk management features.
 
 ## Server Configuration
 
@@ -25,11 +25,11 @@ This Model Context Protocol (MCP) server provides interfaces for interacting wit
 
 ## Available Tools
 
-### Market Data Tools
+### Futures Market Data Tools
 
 1. `get_price`
 
-   - Description: Get current futures price for a trading symbol
+   - Description: Get current futures price and funding rate for a trading symbol
    - Parameters:
      ```json
      {
@@ -42,7 +42,12 @@ This Model Context Protocol (MCP) server provides interfaces for interacting wit
        "content": [
          {
            "type": "text",
-           "text": "Current price for BTCUSDT: 45000.50"
+           "text": {
+             "price": "45000.50",
+             "fundingRate": "0.0001",
+             "nextFundingTime": 1683115200000,
+             "markPrice": "45001.20"
+           }
          }
        ]
      }
@@ -246,6 +251,89 @@ This Model Context Protocol (MCP) server provides interfaces for interacting wit
                "timeframe": "4h",
                "riskLevel": "MEDIUM"
              }
+           }
+         }
+       ]
+     }
+     ```
+
+### Position Management Tools
+
+1. `get_position`
+
+   - Description: Get current futures position details
+   - Parameters:
+     ```json
+     {
+       "symbol": "BTCUSDT"
+     }
+     ```
+   - Response:
+     ```json
+     {
+       "content": [
+         {
+           "type": "text",
+           "text": {
+             "symbol": "BTCUSDT",
+             "positionSide": "LONG",
+             "leverage": 10,
+             "entryPrice": "44500.00",
+             "markPrice": "45000.50",
+             "unrealizedPnl": "500.50",
+             "liquidationPrice": "41000.00",
+             "marginType": "ISOLATED",
+             "isolatedMargin": "1000.00"
+           }
+         }
+       ]
+     }
+     ```
+
+2. `set_leverage`
+
+   - Description: Set leverage for a futures symbol
+   - Parameters:
+     ```json
+     {
+       "symbol": "BTCUSDT",
+       "leverage": 10
+     }
+     ```
+   - Response:
+     ```json
+     {
+       "content": [
+         {
+           "type": "text",
+           "text": {
+             "symbol": "BTCUSDT",
+             "leverage": 10,
+             "maxNotionalValue": "1000000"
+           }
+         }
+       ]
+     }
+     ```
+
+3. `set_margin_type`
+   - Description: Set margin type (ISOLATED/CROSS) for a futures symbol
+   - Parameters:
+     ```json
+     {
+       "symbol": "BTCUSDT",
+       "marginType": "ISOLATED"
+     }
+     ```
+   - Response:
+     ```json
+     {
+       "content": [
+         {
+           "type": "text",
+           "text": {
+             "symbol": "BTCUSDT",
+             "marginType": "ISOLATED"
            }
          }
        ]

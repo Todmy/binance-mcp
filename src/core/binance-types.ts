@@ -7,6 +7,7 @@ export interface FuturesBookTicker {
   bestAskPrice: string;
   bestAskQty: string;
   time: number;
+  fundingRate?: string;  // Adding optional funding rate for futures
 }
 
 export interface FuturesOrder {
@@ -47,6 +48,35 @@ export interface NewFuturesOrder {
   newClientOrderId?: string;
   reduceOnly?: boolean;
   positionSide?: PositionSide;
+}
+
+export interface FuturesAccountBalance {
+  accountAlias: string;
+  asset: string;
+  balance: string;
+  crossWalletBalance: string;
+  crossUnPnl: string;
+  availableBalance: string;
+  maxWithdrawAmount: string;
+  marginAvailable: boolean;
+  updateTime: number;
+}
+
+export interface FuturesPositionRisk {
+  symbol: string;
+  positionAmount: string;
+  entryPrice: string;
+  markPrice: string;
+  unRealizedProfit: string;
+  liquidationPrice: string;
+  leverage: string;
+  marginType: 'isolated' | 'cross';
+  isolatedMargin: string;
+  isAutoAddMargin: string;
+  positionSide: 'BOTH' | 'LONG' | 'SHORT';
+  notional: string;
+  isolatedWallet: string;
+  updateTime: number;
 }
 
 export interface BinanceClient {
@@ -94,4 +124,25 @@ export interface BinanceClient {
     orderId?: number;
     origClientOrderId?: string;
   }): Promise<FuturesOrder>;
+  futuresGetOrder(options: {
+    symbol: string;
+    orderId?: number;
+    origClientOrderId?: string;
+  }): Promise<FuturesOrder>;
+  futuresOpenOrders(options: { symbol?: string }): Promise<FuturesOrder[]>;
+  futuresPositionRisk(options: { symbol?: string }): Promise<FuturesPositionRisk[]>;
+  futuresAccountBalance(): Promise<FuturesAccountBalance[]>;
+  futuresDaily(options: { symbol: string }): Promise<{
+    priceChangePercent: string;
+    lastPrice: string;
+  }>;
+  futuresLeverage(options: { symbol: string; leverage: number }): Promise<{
+    leverage: number;
+    maxNotionalValue: string;
+    symbol: string;
+  }>;
+  futuresMarginType(options: { symbol: string; marginType: 'ISOLATED' | 'CROSS' }): Promise<{
+    code: number;
+    msg: string;
+  }>;
 }

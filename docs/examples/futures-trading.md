@@ -264,3 +264,164 @@ const results = await Promise.all(
 const accuracy = results.reduce((acc, r) => acc + r.accuracy, 0) / results.length;
 console.log(`Average prediction accuracy: ${accuracy}%`);
 ```
+
+## Position and Leverage Management
+
+```javascript
+// Set up leverage for a symbol
+await mcp.call("set_leverage", {
+  symbol: "BTCUSDT",
+  leverage: 10
+});
+
+// Set margin type
+await mcp.call("set_margin_type", {
+  symbol: "BTCUSDT",
+  marginType: "ISOLATED"
+});
+
+// Get current position details
+const position = await mcp.call("get_position", {
+  symbol: "BTCUSDT"
+});
+
+// Calculate optimal position size based on risk parameters
+const positionSize = await mcp.call("get_risk/position-size", {
+  symbol: "BTCUSDT",
+  riskPercentage: 1, // Risk 1% of account
+  stopLoss: 44000,
+  leverage: 10,
+  marginType: "ISOLATED"
+});
+
+// Monitor liquidation risk
+const riskAnalysis = await mcp.call("get_risk/analysis", {
+  symbol: "BTCUSDT",
+  position: position
+});
+
+// Example responses:
+// Position details:
+{
+  symbol: "BTCUSDT",
+  positionSide: "LONG",
+  leverage: 10,
+  entryPrice: "45000",
+  markPrice: "45500",
+  unrealizedPnl: "500",
+  marginType: "ISOLATED",
+  isolatedMargin: "1000",
+  liquidationPrice: "41000"
+}
+
+// Risk analysis:
+{
+  liquidationRisk: "LOW",
+  marginRatio: "0.15",
+  suggestedActions: [
+    "Consider taking partial profits",
+    "Current leverage is optimal for market conditions"
+  ],
+  warnings: []
+}
+```
+
+## Advanced Risk Management
+
+```javascript
+// Get optimal leverage based on market conditions
+const leverageRec = await mcp.call("get_risk/optimal-leverage", {
+  symbol: "BTCUSDT",
+  targetRisk: "MEDIUM", // LOW, MEDIUM, HIGH
+  marginType: "ISOLATED"
+});
+
+// Monitor multiple positions
+const portfolioRisk = await mcp.call("get_risk/portfolio", {
+  positions: ["BTCUSDT", "ETHUSDT"]
+});
+
+// Example responses:
+// Leverage recommendation:
+{
+  recommendedLeverage: 5,
+  maxSafeLeverage: 10,
+  reasoning: [
+    "High market volatility detected",
+    "Current trend strength: medium",
+    "Recent price action suggests moderate risk"
+  ]
+}
+
+// Portfolio risk:
+{
+  totalRisk: "MEDIUM",
+  marginUtilization: "45%",
+  positions: [
+    {
+      symbol: "BTCUSDT",
+      riskLevel: "LOW",
+      marginRatio: "0.15"
+    },
+    {
+      symbol: "ETHUSDT",
+      riskLevel: "MEDIUM",
+      marginRatio: "0.25"
+    }
+  ],
+  recommendations: [
+    "Consider reducing ETHUSDT position size",
+    "Portfolio correlation: 0.75 - high risk"
+  ]
+}
+```
+
+## Automated Position Management
+
+```javascript
+// Set up automated stop-loss and take-profit
+await mcp.call("set_position_automation", {
+  symbol: "BTCUSDT",
+  stopLoss: {
+    price: "44000",
+    type: "TRAILING", // or "FIXED"
+    callbackRate: 0.8 // For trailing stop
+  },
+  takeProfit: {
+    price: "47000"
+  }
+});
+
+// Monitor position with alerts
+const subscription = await mcp.call("subscribe_position_alerts", {
+  symbol: "BTCUSDT",
+  alerts: [
+    {
+      type: "LIQUIDATION_RISK",
+      threshold: "75%" // Alert when within 75% of liquidation
+    },
+    {
+      type: "PNL",
+      condition: "UNREALIZED",
+      threshold: "500" // Alert on $500 unrealized PnL
+    }
+  ]
+});
+
+// Example alert response:
+{
+  type: "LIQUIDATION_RISK",
+  symbol: "BTCUSDT",
+  message: "Position approaching liquidation price",
+  details: {
+    currentPrice: "41500",
+    liquidationPrice: "41000",
+    marginRatio: "0.85",
+    suggestedActions: [
+      "Add margin to position",
+      "Reduce position size",
+      "Close position"
+    ]
+  }
+}
+```
